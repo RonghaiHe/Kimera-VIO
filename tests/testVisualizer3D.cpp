@@ -13,15 +13,15 @@
  * @author Marcus Abate
  */
 
+#include <gflags/gflags.h>
+#include <glog/logging.h>
+#include <gtest/gtest.h>
+
 #include <algorithm>
 #include <cstdlib>
 #include <fstream>
 #include <iostream>
 #include <random>
-
-#include <gflags/gflags.h>
-#include <glog/logging.h>
-#include <gtest/gtest.h>
 
 #include "kimera-vio/backend/VioBackend-definitions.h"
 #include "kimera-vio/frontend/StereoVisionImuFrontend-definitions.h"
@@ -49,7 +49,7 @@ class VisualizerFixture : public ::testing::Test {
     // Construct a frame from image name, and extract keypoints/landmarks.
     frame_ = constructFrame(true);
     visualizer_ =
-        VIO::make_unique<VIO::OpenCvVisualizer3D>(viz_type_, backend_type_);
+        std::make_unique<VIO::OpenCvVisualizer3D>(viz_type_, backend_type_);
   }
 
  protected:
@@ -63,7 +63,7 @@ class VisualizerFixture : public ::testing::Test {
     Timestamp tmp = 123;
 
     std::unique_ptr<Frame> frame =
-        VIO::make_unique<Frame>(id, tmp, CameraParams(), img_);
+        std::make_unique<Frame>(id, tmp, CameraParams(), img_);
 
     if (extract_corners) {
       UtilsOpenCV::ExtractCorners(frame->img_, &frame->keypoints_);
@@ -127,9 +127,8 @@ TEST_F(VisualizerFixture, spinOnce) {
           ImuAccGyrS(),
           cv::Mat(),
           DebugTrackerInfo());
-  LcdOutput::Ptr lcd_output = std::make_shared<LcdOutput>(timestamp);
   VisualizerInput visualizer_input(
-      timestamp, mesher_output, backend_output, frontend_output, lcd_output);
+      timestamp, mesher_output, backend_output, frontend_output);
   // Visualize mesh.
   EXPECT_NO_THROW(visualizer_->spinOnce(visualizer_input));
 }

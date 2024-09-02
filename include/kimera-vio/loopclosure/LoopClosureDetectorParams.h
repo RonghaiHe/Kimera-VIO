@@ -21,11 +21,18 @@
 #include <string>
 
 #include "kimera-vio/frontend/VisionImuTrackerParams.h"
+#include "kimera-vio/loopclosure/FrameCache.h"
 #include "kimera-vio/loopclosure/LoopClosureDetector-definitions.h"
 #include "kimera-vio/pipeline/PipelineParams.h"
 #include "kimera-vio/utils/YamlParser.h"
 
 namespace VIO {
+
+enum class PoseRecoveryType {
+  k3d3d = 0,
+  kPnP = 1,
+  k5ptRotOnly = 2,
+};
 
 class LoopClosureDetectorParams : public PipelineParams {
  public:
@@ -40,7 +47,7 @@ class LoopClosureDetectorParams : public PipelineParams {
   bool equals(const LoopClosureDetectorParams& lp2, double tol = 1e-10) const;
 
  protected:
-  virtual bool equals(const PipelineParams& obj) const {
+  bool equals(const PipelineParams& obj) const override {
     const auto& rhs = static_cast<const LoopClosureDetectorParams&>(obj);
     return equals(rhs);
   }
@@ -71,7 +78,7 @@ class LoopClosureDetectorParams : public PipelineParams {
 
   /////////////////////////// 3D Pose Recovery Params //////////////////////////
   bool refine_pose_ = true;
-  bool use_pnp_pose_recovery_ = false;
+  PoseRecoveryType pose_recovery_type_ = PoseRecoveryType::k3d3d;
   static constexpr double max_pose_recovery_translation_ = 1e3;
   //////////////////////////////////////////////////////////////////////////////
 
@@ -80,7 +87,8 @@ class LoopClosureDetectorParams : public PipelineParams {
 #if CV_VERSION_MAJOR == 3
   int matcher_type_ = 3;
 #else
-  cv::DescriptorMatcher::MatcherType matcher_type_;
+  cv::DescriptorMatcher::MatcherType matcher_type_ =
+      cv::DescriptorMatcher::MatcherType::BRUTEFORCE_L1;
 #endif
   //////////////////////////////////////////////////////////////////////////////
 
@@ -112,6 +120,8 @@ class LoopClosureDetectorParams : public PipelineParams {
   //////////////////////////////////////////////////////////////////////////////
 
   int max_lc_cached_before_optimize_ = 10;
+
+  FrameCacheConfig frame_cache;
 };
 
 }  // namespace VIO

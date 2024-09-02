@@ -64,6 +64,13 @@ struct VioParams : public PipelineParams {
   explicit VioParams(const std::string& params_folder_path);
 
   /**
+   * @brief VioParams Default constructor
+   * @param params_folder_path Path to normal pipline params
+   * @param sensor_folder_path Path to sensor-related params
+   */
+  VioParams(const std::string& params_folder_path, const std::string& sensor_folder_path);
+
+  /**
    * @brief VioParams constructor which provides freedom to choose the parsed
    * params on a per-config basis.
    *
@@ -92,7 +99,7 @@ struct VioParams : public PipelineParams {
             const std::string& backend_params_filepath,
             const std::string& lcd_params_filepath,
             const std::string& display_params_filepath,
-            boost::optional<std::string> odom_params_filepath,
+            const std::string& odom_params_filepath = "",
             bool should_parse = true);
 
   virtual ~VioParams() = default;
@@ -142,7 +149,7 @@ struct VioParams : public PipelineParams {
   FrontendType frontend_type_;
   BackendType backend_type_;
   DisplayType display_type_;
-  boost::optional<OdometryParams> odom_params_;
+  std::optional<OdometryParams> odom_params_;
   bool parallel_run_;
 
  protected:
@@ -172,7 +179,7 @@ struct VioParams : public PipelineParams {
   std::string backend_params_filepath_;
   std::string lcd_params_filepath_;
   std::string display_params_filepath_;
-  boost::optional<std::string> odom_params_filepath_;
+  std::string odom_params_filepath_;
 };
 
 //! Callback called when the VIO pipeline has shut down.

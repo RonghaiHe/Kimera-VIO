@@ -180,8 +180,8 @@ class Pipeline {
     if (lcd_module_) {
       lcd_module_->registerOutputCallback(callback);
     } else {
-      LOG(ERROR) << "Attempt to register LCD/PGO callback, but no "
-                 << "LoopClosureDetector member is active in pipeline.";
+      LOG(WARNING) << "Attempt to register LCD/PGO callback, but no "
+                   << "LoopClosureDetector member is active in pipeline.";
     }
   }
 
