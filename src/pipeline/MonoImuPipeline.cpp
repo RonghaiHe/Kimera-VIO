@@ -43,7 +43,7 @@ MonoImuPipeline::MonoImuPipeline(const VioParams& params,
   // CHECK_EQ(params.camera_params_.size(), 1u) << "Need one camera for
   // MonoImuPipeline.";
   camera_ = std::make_shared<Camera>(params.camera_params_.at(0));
-
+  // 配置数据提供模块：设置IMU和相机的时间同步选项，并注册回调函数以处理前端输入。
   data_provider_module_ = std::make_unique<MonoDataProviderModule>(
       &frontend_input_queue_, "Mono Data Provider", parallel_run_);
   if (FLAGS_do_coarse_imu_camera_temporal_sync) {
@@ -65,7 +65,7 @@ MonoImuPipeline::MonoImuPipeline(const VioParams& params,
 
   data_provider_module_->registerVioPipelineCallback(
       std::bind(&MonoImuPipeline::spinOnce, this, std::placeholders::_1));
-
+  // 配置前端模块：创建并配置视觉-惯性前端模块，注册IMU时间偏移更新回调。
   LOG_IF(FATAL, params.frontend_params_.use_stereo_tracking_)
       << "useStereoTracking is set to true, but this is a mono pipeline!";
   vio_frontend_module_ = std::make_unique<VisionImuFrontendModule>(
@@ -84,7 +84,7 @@ MonoImuPipeline::MonoImuPipeline(const VioParams& params,
       [&](double imu_time_shift_s) {
         data_provider_module_->setImuTimeShift(imu_time_shift_s);
       });
-
+  // 配置后端模块：创建并配置视觉-惯性后端模块，注册失败回调、IMU偏差更新回调和地图更新回调。
   auto& backend_input_queue = backend_input_queue_;
   vio_frontend_module_->registerOutputCallback(
       [&backend_input_queue](const FrontendOutputPacketBase::Ptr& output) {

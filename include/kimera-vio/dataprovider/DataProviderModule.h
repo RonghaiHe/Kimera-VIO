@@ -70,6 +70,15 @@ class DataProviderModule : public MISOPipelineModule<FrontendInputPacketBase,
   }
 
   // TODO(Toni): remove, register at ctor level.
+  /**
+   * @brief 注册VIO（视觉惯性里程计）管道的输出回调函数
+   *
+   * 该函数用于设置一个回调函数，当VIO管道有新的输出时，将会调用该回调函数
+   * 通过这种方式，用户可以自定义处理VIO管道输出的逻辑
+   *
+   * @param cb 回调函数引用，用于处理VIO管道的输出
+   *           回调函数的参数和返回值类型由具体的应用场景决定
+   */
   inline void registerVioPipelineCallback(const PipelineOutputCallback& cb) {
     vio_pipeline_callback_ = cb;
   }
