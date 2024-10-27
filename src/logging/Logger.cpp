@@ -588,7 +588,7 @@ void PipelineLogger::logPipelineOverallTiming(
 /* ++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++ */
 LoopClosureDetectorLogger::LoopClosureDetectorLogger()
     : output_lcd_("output_lcd_result.csv"),
-      output_traj_("traj_pgo.csv"),
+      output_traj_("traj_pgo.tum"),
       output_status_("output_lcd_status.csv"),
       output_geom_verif_("output_lcd_geom_verif.csv"),
       output_pose_recovery_("output_lcd_pose_recovery.csv"),
@@ -686,11 +686,11 @@ void LoopClosureDetectorLogger::logOptimizedTraj(const LcdOutput& lcd_output) {
   // We log the full optimized trajectory in csv format.
   std::ofstream& output_stream_traj = output_traj_.ofstream_;
 
-  bool is_header_written = false;
-  if (!is_header_written) {
-    output_stream_traj << "#timestamp_kf,x,y,z,qw,qx,qy,qz" << std::endl;
-    is_header_written = true;
-  }
+  // bool is_header_written = false;
+  // if (!is_header_written) {
+  //   output_stream_traj << "#timestamp_kf,x,y,z,qw,qx,qy,qz" << std::endl;
+  //   is_header_written = true;
+  // }
 
   const gtsam::Values& traj = lcd_output.states_;
 
@@ -699,9 +699,12 @@ void LoopClosureDetectorLogger::logOptimizedTraj(const LcdOutput& lcd_output) {
     const gtsam::Point3& trans = pose.translation();
     const gtsam::Quaternion& quat = pose.rotation().toQuaternion();
 
-    output_stream_traj << ts_map_.at(i) << "," << trans.x() << "," << trans.y()
-                       << "," << trans.z() << "," << quat.w() << "," << quat.x()
-                       << "," << quat.y() << "," << quat.z() << std::endl;
+    // output_stream_traj << ts_map_.at(i) << "," << trans.x() << "," << trans.y()
+    //                    << "," << trans.z() << "," << quat.w() << "," << quat.x()
+    //                    << "," << quat.y() << "," << quat.z() << std::endl;
+    output_stream_traj << ts_map_.at(i) / 1e9 << " " << trans.x() << " " << trans.y()
+                       << " " << trans.z() << " " << quat.w() << " " << quat.x()
+                       << " " << quat.y() << " " << quat.z() << std::endl;
   }
 }
 
