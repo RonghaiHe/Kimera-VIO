@@ -699,12 +699,15 @@ void LoopClosureDetectorLogger::logOptimizedTraj(const LcdOutput& lcd_output) {
     const gtsam::Point3& trans = pose.translation();
     const gtsam::Quaternion& quat = pose.rotation().toQuaternion();
 
-    // output_stream_traj << ts_map_.at(i) << "," << trans.x() << "," << trans.y()
-    //                    << "," << trans.z() << "," << quat.w() << "," << quat.x()
+    // output_stream_traj << ts_map_.at(i) << "," << trans.x() << "," <<
+    // trans.y()
+    //                    << "," << trans.z() << "," << quat.w() << "," <<
+    //                    quat.x()
     //                    << "," << quat.y() << "," << quat.z() << std::endl;
-    output_stream_traj << ts_map_.at(i) / 1e9 << " " << trans.x() << " " << trans.y()
-                       << " " << trans.z() << " " << quat.w() << " " << quat.x()
-                       << " " << quat.y() << " " << quat.z() << std::endl;
+    output_stream_traj << ts_map_.at(i) / 1e9 << " " << trans.x() << " "
+                       << trans.y() << " " << trans.z() << " " << quat.x()
+                       << " " << quat.y() << " " << quat.z() << " " << quat.w()
+                       << std::endl;
   }
 }
 
