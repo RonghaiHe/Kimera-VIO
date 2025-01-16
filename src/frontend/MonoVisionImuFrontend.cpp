@@ -114,9 +114,13 @@ MonoFrontendOutput::UniquePtr MonoVisionImuFrontend::nominalSpinMono(
   if (VLOG_IS_ON(10)) input->print();
 
   // auto tic_full_preint = utils::Timer::tic();
+  // IMU预积分处理
+  // Pre-integrate IMU measurements
   const ImuFrontend::PimPtr& pim = imu_frontend_->preintegrateImuMeasurements(
       input->getImuStamps(), input->getImuAccGyrs());
   CHECK(pim);
+  // 获取相机与IMU之间的旋转变换
+  // Obtain rotations between camera and IMU
   const gtsam::Rot3 body_R_cam = mono_camera_->getBodyPoseCam().rotation();
   const gtsam::Rot3 cam_R_body = body_R_cam.inverse();
   gtsam::Rot3 camLrectLkf_R_camLrectK_imu =
@@ -129,6 +133,8 @@ MonoFrontendOutput::UniquePtr MonoVisionImuFrontend::nominalSpinMono(
 
   /////////////////////////////// TRACKING /////////////////////////////////////
   VLOG(10) << "Starting processFrame...";
+  // 1. 特征跟踪处理
+  // Feature tracking processing
   cv::Mat feature_tracks;
   StatusMonoMeasurementsPtr status_mono_measurements =
       processFrame(mono_frame_k, camLrectLkf_R_camLrectK_imu, &feature_tracks);
@@ -140,6 +146,8 @@ MonoFrontendOutput::UniquePtr MonoVisionImuFrontend::nominalSpinMono(
     MonoVisionImuFrontend::printStatusMonoMeasurements(
         *status_mono_measurements);
 
+  // 2. 关键帧处理
+  // Keyframe processing
   if (mono_frame_km1_->isKeyframe_) {
     CHECK_EQ(mono_frame_lkf_->timestamp_, mono_frame_km1_->timestamp_);
     CHECK_EQ(mono_frame_lkf_->id_, mono_frame_km1_->id_);
@@ -150,6 +158,8 @@ MonoFrontendOutput::UniquePtr MonoVisionImuFrontend::nominalSpinMono(
             << " smart measurements";
 
     ////////////////// DEBUG INFO FOR FRONT-END ////////////////////////////////
+    // 记录关键帧统计信息
+    // Log keyframe statistics
     if (logger_) {
       logger_->logFrontendStats(mono_frame_lkf_->timestamp_,
                                 getTrackerInfo(),
@@ -161,6 +171,7 @@ MonoFrontendOutput::UniquePtr MonoVisionImuFrontend::nominalSpinMono(
     }
     //////////////////////////////////////////////////////////////////////////////
 
+    // 重置IMU预积分
     // Reset integration; the later the better.
     VLOG(10) << "Reset IMU preintegration with latest IMU bias.";
     imu_frontend_->resetIntegrationWithCachedBias();
@@ -168,6 +179,7 @@ MonoFrontendOutput::UniquePtr MonoVisionImuFrontend::nominalSpinMono(
     // Record keyframe rate timing
     timing_stats_keyframe_rate.AddSample(utils::Timer::toc(start_time).count());
 
+    // 返回关键帧输出
     // Return the output of the Frontend for the others.
     // We have a keyframe, so We fill frame_lkf_ with the newest keyframe
     VLOG(2) << "Frontend output is a keyframe: pushing to output callbacks.";
@@ -183,6 +195,7 @@ MonoFrontendOutput::UniquePtr MonoVisionImuFrontend::nominalSpinMono(
         getExternalOdometryRelativeBodyPose(input.get()),
         getExternalOdometryWorldVelocity(input.get()));
   } else {
+    // 返回普通帧输出
     // Record frame rate timing
     timing_stats_frame_rate.AddSample(utils::Timer::toc(start_time).count());
 
@@ -227,6 +240,15 @@ void MonoVisionImuFrontend::processFirstFrame(const Frame& first_frame) {
   imu_frontend_->resetIntegrationWithCachedBias();
 }
 
+// TODO: corresponding change for wrong variable: ref2cur_frame
+/**
+ * @brief: Process a frame, given the current frame and the previous keyframe.
+ * @param cur_frame: the current frame
+ * @param keyframe_R_cur_frame: the rotation Rij from IMU preintegrate at
+ * camera-frame, from reference frame to current frame
+ * @param feature_tracks: the feature tracks
+ * @return: the status of the mono measurements
+ */
 StatusMonoMeasurementsPtr MonoVisionImuFrontend::processFrame(
     const Frame& cur_frame,
     const gtsam::Rot3& keyframe_R_cur_frame,
@@ -243,6 +265,7 @@ StatusMonoMeasurementsPtr MonoVisionImuFrontend::processFrame(
   mono_frame_k_ = std::make_shared<Frame>(cur_frame);
 
   VLOG(2) << "Starting feature tracking...";
+  // TODO: corresponding change for wrong variable: ref2cur_frame
   gtsam::Rot3 ref_frame_R_cur_frame =
       keyframe_R_ref_frame_.inverse().compose(keyframe_R_cur_frame);
   tracker_->featureTracking(mono_frame_km1_.get(),
@@ -268,6 +291,7 @@ StatusMonoMeasurementsPtr MonoVisionImuFrontend::processFrame(
 
     if (frontend_params_.useRANSAC_) {
       TrackingStatusPose status_pose_mono;
+      // TODO: corresponding change
       outlierRejectionMono(keyframe_R_cur_frame,
                            mono_frame_lkf_.get(),
                            mono_frame_k_.get(),
@@ -397,7 +421,7 @@ void MonoVisionImuFrontend::sendMonoTrackingToLogger() const {
       }
     }
   }
-  //############################################################################
+  // ############################################################################
 
   // Plot matches.
   cv::Mat img_left_lkf_kf =

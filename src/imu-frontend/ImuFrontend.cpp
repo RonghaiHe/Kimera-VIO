@@ -162,6 +162,8 @@ ImuFrontend::PimPtr ImuFrontend::preintegrateImuMeasurements(
   CHECK(imu_stamps.cols() >= 2) << "No Imu data found.";
   CHECK(imu_accgyr.cols() >= 2) << "No Imu data found.";
   for (int i = 0; i < imu_stamps.cols() - 1; ++i) {
+    // LOG(INFO) << "Imu integration: " << imu_stamps(i) << " "
+    //           << imu_stamps(i + 1);
     const gtsam::Vector3& measured_acc = imu_accgyr.block<3, 1>(0, i);
     const gtsam::Vector3& measured_omega = imu_accgyr.block<3, 1>(3, i);
     const double& delta_t =
@@ -171,6 +173,7 @@ ImuFrontend::PimPtr ImuFrontend::preintegrateImuMeasurements(
     // and efficiency??
     pim_->integrateMeasurement(measured_acc, measured_omega, delta_t);
   }
+  // LOG(INFO) << "Completed IMU preintegration.";
   if (VLOG_IS_ON(10)) {
     LOG(INFO) << "Finished preintegration: ";
     pim_->print("PIM type: " + std::to_string(VIO::to_underlying(

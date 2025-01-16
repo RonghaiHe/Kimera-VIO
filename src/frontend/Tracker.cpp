@@ -89,6 +89,13 @@ Tracker::Tracker(const TrackerParams& tracker_params,
 // it modifies debuginfo_...
 // NOTE: you do not need R in the mono case. For stereo cameras we pass R
 // to ensure we rectify the versors and 3D points of the features we detect.
+/* 特征跟踪函数：在连续帧之间跟踪特征点
+ * @param ref_frame: 参考帧
+ * @param cur_frame: 当前帧
+ * @param ref_R_cur: 从当前帧到参考帧的旋转矩阵
+ * @param feature_detector_params: 特征检测器参数
+ * @param R: 可选的校正矩阵
+ */
 void Tracker::featureTracking(
     Frame* ref_frame,
     Frame* cur_frame,
@@ -100,11 +107,13 @@ void Tracker::featureTracking(
   auto tic = utils::Timer::tic();
 
   // Fill up structure for reference pixels and their labels.
+  // 填充参考像素及其标签的数据结构
   const size_t& n_ref_kpts = ref_frame->keypoints_.size();
   KeypointsCV px_ref;
   std::vector<size_t> indices_of_valid_landmarks;
   px_ref.reserve(n_ref_kpts);
   indices_of_valid_landmarks.reserve(n_ref_kpts);
+  // 遍历参考帧中的所有关键点，只保留有效的路标点
   for (size_t i = 0; i < ref_frame->keypoints_.size(); ++i) {
     if (ref_frame->landmarks_[i] != -1) {
       // Current reference frame keypoint has a valid landmark.
@@ -114,26 +123,31 @@ void Tracker::featureTracking(
   }
 
   // Setup termination criteria for optical flow.
+  // 设置光流法的终止条件
   const cv::TermCriteria kTerminationCriteria(
       cv::TermCriteria::COUNT + cv::TermCriteria::EPS,
-      tracker_params_.klt_max_iter_,
-      tracker_params_.klt_eps_);
+      tracker_params_.klt_max_iter_,  // 最大迭代次数
+      tracker_params_.klt_eps_);      // 精度阈值
   const cv::Size2i klt_window_size(tracker_params_.klt_win_size_,
                                    tracker_params_.klt_win_size_);
 
   // Initialize to old locations
+  // 初始化到旧位置
   LOG_IF(ERROR, px_ref.size() == 0u) << "No keypoints in reference frame!";
 
   KeypointsCV px_cur;
+  // 预测特征点在当前帧中的位置
   CHECK(optical_flow_predictor_->predictSparseFlow(px_ref, ref_R_cur, &px_cur));
   KeypointsCV px_predicted = px_cur;
 
   // Do the actual tracking, so px_cur becomes the new pixel locations.
+  // 执行实际的跟踪，px_cur将成为新的像素位置
   VLOG(2) << "Starting Optical Flow Pyr LK tracking...";
 
-  std::vector<uchar> status;
-  std::vector<float> error;
+  std::vector<uchar> status;  // 跟踪状态
+  std::vector<float> error;   // 跟踪误差
   auto time_lukas_kanade_tic = utils::Timer::tic();
+  // 使用金字塔Lucas-Kanade光流法进行特征点跟踪
   cv::calcOpticalFlowPyrLK(ref_frame->img_,
                            cur_frame->img_,
                            px_ref,
@@ -164,6 +178,7 @@ void Tracker::featureTracking(
   cur_frame->keypoints_.reserve(px_ref.size());
   cur_frame->scores_.reserve(px_ref.size());
   cur_frame->versors_.reserve(px_ref.size());
+  // 更新当前帧的特征点信息
   for (size_t i = 0u; i < indices_of_valid_landmarks.size(); ++i) {
     // If we failed to track mark off that landmark
     const size_t& idx_valid_lmk = indices_of_valid_landmarks[i];
@@ -171,16 +186,19 @@ void Tracker::featureTracking(
     const LandmarkId& lmk_id = ref_frame->landmarks_[idx_valid_lmk];
 
     // if we tracked keypoint and feature track is not too long
+    // 如果跟踪失败或特征点追踪时间过长，则标记为无效
     if (!status[i] || lmk_age > tracker_params_.max_feature_track_age_) {
       // we are marking this bad in the ref_frame since features
       // in the ref frame guide feature detection later on
       ref_frame->landmarks_[idx_valid_lmk] = -1;
       continue;
     }
+    // 保存成功跟踪的特征点信息
     cur_frame->landmarks_.push_back(lmk_id);
     cur_frame->landmarks_age_.push_back(lmk_age);
     cur_frame->scores_.push_back(ref_frame->scores_[idx_valid_lmk]);
     cur_frame->keypoints_.push_back(px_cur[i]);
+    // 计算特征点的单位向量
     gtsam::Vector3 bearing_vector = UndistorterRectifier::GetBearingVector(
         px_cur[i], ref_frame->cam_param_, R);
     CHECK_LT(std::abs(bearing_vector.norm() - 1.0), 1e-6)

@@ -171,6 +171,7 @@ StereoFrontendOutput::UniquePtr StereoVisionImuFrontend::nominalSpinStereo(
     StereoVisionImuFrontend::printStatusStereoMeasurements(
         *status_stereo_measurements);
 
+  // VLOG(0) << "This is KF? " << stereoFrame_km1_->isKeyframe();
   if (stereoFrame_km1_->isKeyframe()) {
     // We got a keyframe!
     CHECK_EQ(stereoFrame_lkf_->timestamp_, stereoFrame_km1_->timestamp_);
@@ -580,8 +581,8 @@ void StereoVisionImuFrontend::sendStereoMatchesToLogger() const {
                 "in right frame.";
   }
 
-  //############################################################################
-  // Plot matches.
+  // ############################################################################
+  //  Plot matches.
   cv::Mat img_left_right =
       UtilsOpenCV::DrawCornersMatches(img_left,
                                       left_frame_k.keypoints_,
@@ -602,7 +603,7 @@ void StereoVisionImuFrontend::sendStereoMatchesToLogger() const {
                           "/stereoMatchingUnrectifiedImg/",
                           FLAGS_visualize_frontend_images,
                           FLAGS_save_frontend_images);
-  //############################################################################
+  // ############################################################################
 
   // Display rectified, plot matches.
   static constexpr bool kUseRandomColor = false;
@@ -646,7 +647,7 @@ void StereoVisionImuFrontend::sendMonoTrackingToLogger() const {
       }
     }
   }
-  //############################################################################
+  // ############################################################################
 
   // Plot matches.
   cv::Mat img_left_lkf_kf =
@@ -670,7 +671,7 @@ void StereoVisionImuFrontend::sendMonoTrackingToLogger() const {
                           "/monoTrackingUnrectifiedImg/",
                           FLAGS_visualize_frontend_images,
                           FLAGS_save_frontend_images);
-  //############################################################################
+  // ############################################################################
 
   // Display rectified, plot matches.
   static constexpr bool kUseRandomColor = false;
