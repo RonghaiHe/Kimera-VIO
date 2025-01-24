@@ -246,6 +246,7 @@ void InitializationBackend::addInitialVisualState(
           B_Pose_leftCamRect_ *
               status_smart_stereo_measurements_kf.first.lkf_T_k_stereo_ *
               B_Pose_leftCamRect_.inverse(),
+              true,
           backend_params_.betweenRotationPrecision_,
           backend_params_.betweenTranslationPrecision_);
     }

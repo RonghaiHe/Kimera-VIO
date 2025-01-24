@@ -48,6 +48,7 @@
 #include <iostream>
 #include <memory>
 #include <unordered_map>
+#include <cmath>
 
 #include "kimera-vio/backend/VioBackend-definitions.h"
 #include "kimera-vio/backend/VioBackendParams.h"
@@ -269,6 +270,7 @@ class VioBackend {
   void addBetweenFactor(const FrameId& from_id,
                         const FrameId& to_id,
                         const gtsam::Pose3& from_id_POSE_to_id,
+                        const bool& is_frame,
                         const double& between_rotation_precision,
                         const double& between_translation_precision);
 
@@ -427,6 +429,8 @@ class VioBackend {
   // Reset state of debug info.
   void resetDebugInfo(DebugVioInfo* debug_info);
 
+  void computeConditionNumber();
+
  public:
   /// Getters
   // Thread-safe methods, but also the returns are const, so no problems.
@@ -516,6 +520,8 @@ class VioBackend {
   int last_kf_id_;
   //! Current keyframe id.
   int curr_kf_id_;
+
+  int kf_between_factor_index_ = -1;
 
   // Imu Bias update callback. To be called as soon as we have a new IMU bias
   // update so that the Frontend performs preintegration with the newest bias.

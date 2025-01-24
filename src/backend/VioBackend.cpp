@@ -331,6 +331,7 @@ bool VioBackend::addVisualInertialStateAndOptimize(
         B_Pose_leftCamRect_ *
             status_smart_stereo_measurements_kf.first.lkf_T_k_stereo_ *
             B_Pose_leftCamRect_.inverse(),
+        true,
         backend_params_.betweenRotationPrecision_,
         backend_params_.betweenTranslationPrecision_);
   }
@@ -407,6 +408,7 @@ bool VioBackend::addVisualInertialStateAndOptimize(
     addBetweenFactor(last_kf_id_,
                      curr_kf_id_,
                      *odometry_body_pose,
+                     false,
                      odom_params_->betweenRotationPrecision_,
                      odom_params_->betweenTranslationPrecision_);
   }
@@ -971,6 +973,7 @@ void VioBackend::addImuFactor(const FrameId& from_id,
 void VioBackend::addBetweenFactor(const FrameId& from_id,
                                   const FrameId& to_id,
                                   const gtsam::Pose3& from_id_POSE_to_id,
+                                  const bool& is_frame,
                                   const double& between_rotation_precision,
                                   const double& between_translation_precision) {
   // TODO(Toni): make noise models const members of Backend...
@@ -986,6 +989,9 @@ void VioBackend::addBetweenFactor(const FrameId& from_id,
           gtsam::Symbol(kPoseSymbolChar, to_id),
           from_id_POSE_to_id,
           betweenNoise_);
+  if (is_frame) {
+    kf_between_factor_index_ = new_imu_prior_and_other_factors_.size() - 1;
+  }
 
   debug_info_.numAddedBetweenStereoF_++;
 }
@@ -1111,6 +1117,10 @@ bool VioBackend::optimize(
     }
   }
 
+  if(kf_between_factor_index_ >= 0){
+    kf_between_factor_index_ += new_factors_tmp.size();
+  }
+
   // Add also other factors (imu, priors).
   // SMART FACTORS MUST BE FIRST, otherwise when recovering the slots
   // for the smart factors we will mess up.
@@ -1234,6 +1244,9 @@ bool VioBackend::optimize(
     // Update states we need for next iteration, if smoother is ok.
     if (is_smoother_ok) {
       updateStates(cur_id);
+
+      computeConditionNumber();
+      kf_between_factor_index_ = -1;
 
       // TODO: Add Update latest covariance --> move flag
       if (FLAGS_compute_state_covariance) {
@@ -2320,6 +2333,27 @@ bool VioBackend::deleteLmkFromFeatureTracks(const LandmarkId& lmk_id) {
     return true;
   }
   return false;
+}
+
+void VioBackend::computeConditionNumber(){
+  gtsam::NonlinearFactor::shared_ptr factor_between_frame = smoother_->getFactors().at(kf_between_factor_index_);
+  gtsam::GaussianFactor::shared_ptr gfbf = factor_between_frame->linearize(state_);
+  gtsam::HessianFactor::shared_ptr hessian_factor = dynamic_cast<gtsam::HessianFactor*>(gfbf.get());
+  gtsam::Matrix hessian = hessian_factor->information();
+
+  Eigen::SelfAdjointEigenSolver<Eigen::Matrix6d> eigensolver(hessian);
+  CHECK_EQ(eigensolver.info(), Eigen::Success) << "Eigenvalue computation failed!";
+  // Obtain eigenvalue
+  Eigen::Vector3d eigenvalues = eigensolver.eigenvalues();
+
+  // Condition number
+  double condNumber = eigenvalues.maxCoeff() / eigenvalues.minCoeff();
+
+  // take logarithm
+  double logCondNumber = std::log(condNumber);
+
+  LOG(INFO) << "Condition number about current KF: " << curr_kf_id_ << " is " << condNumber;
+  LOG(INFO) << "Logarithm of condition number: " << logCondNumber;
 }
 
 }  // namespace VIO.
