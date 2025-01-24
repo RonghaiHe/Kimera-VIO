@@ -205,8 +205,8 @@ bool VisionImuFrontend::shouldBeKeyframe(const Frame& frame,
       ((enough_disparity || disparity_low_first_time) && min_time_elapsed);
 
   const bool need_new_keyframe = max_time_elapsed || max_disparity_reached ||
-                                 disparity_flipped || nr_features_low ||
-                                 frame.isKeyframe_;
+                                 //  disparity_flipped || nr_features_low ||
+                                 disparity_flipped || frame.isKeyframe_;
 
   if (!need_new_keyframe) {
     return false;  // no keyframe conditions are met
