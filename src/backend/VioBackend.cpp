@@ -1117,7 +1117,7 @@ bool VioBackend::optimize(
     }
   }
 
-  if(kf_between_factor_index_ >= 0){
+  if (kf_between_factor_index_ >= 0) {
     kf_between_factor_index_ += new_factors_tmp.size();
   }
 
@@ -1245,7 +1245,8 @@ bool VioBackend::optimize(
     if (is_smoother_ok) {
       updateStates(cur_id);
 
-      computeConditionNumber();
+      if (kf_between_factor_index_ >= 0)
+        computeConditionNumber(new_factors_tmp.at(kf_between_factor_index_));
       kf_between_factor_index_ = -1;
 
       // TODO: Add Update latest covariance --> move flag
@@ -2335,25 +2336,57 @@ bool VioBackend::deleteLmkFromFeatureTracks(const LandmarkId& lmk_id) {
   return false;
 }
 
-void VioBackend::computeConditionNumber(){
-  gtsam::NonlinearFactor::shared_ptr factor_between_frame = smoother_->getFactors().at(kf_between_factor_index_);
-  gtsam::GaussianFactor::shared_ptr gfbf = factor_between_frame->linearize(state_);
-  gtsam::HessianFactor::shared_ptr hessian_factor = dynamic_cast<gtsam::HessianFactor*>(gfbf.get());
-  gtsam::Matrix hessian = hessian_factor->information();
+void VioBackend::computeConditionNumber(
+    // const gtsam::NonlinearFactorGraph& new_factors_graph) {
+    const boost::shared_ptr<gtsam::NonlinearFactor> factor_between_frames) {
+  // // Get factor between frames
+  // gtsam::NonlinearFactor::shared_ptr factor_between_frame =
+  //     new_factors_graph.at(kf_between_factor_index_);
+  // CHECK(factor_between_frame) << "Null factor between frames";
 
-  Eigen::SelfAdjointEigenSolver<Eigen::Matrix6d> eigensolver(hessian);
-  CHECK_EQ(eigensolver.info(), Eigen::Success) << "Eigenvalue computation failed!";
+  // Linearize the nonlinear factor
+  gtsam::GaussianFactor::shared_ptr linearized_factor =
+      factor_between_frames->linearize(state_);
+  CHECK(linearized_factor) << "Failed to linearize factor";
+
+  // Cast to HessianFactor using boost::dynamic_pointer_cast
+  gtsam::HessianFactor::shared_ptr hessian_factor =
+      boost::make_shared<gtsam::HessianFactor>(*linearized_factor);
+  CHECK(hessian_factor) << "Failed to cast to HessianFactor";
+
+  gtsam::Matrix info_matrix = hessian_factor->information();
+  std::cout << "Information matrix: " << info_matrix << std::endl;
+  CHECK_EQ(info_matrix.rows(), 12);
+  CHECK_EQ(info_matrix.cols(), 12);
+
+  // Create fixed size matrix
+  Eigen::Matrix<double, 6, 6> hessian = info_matrix.block<6, 6>(6, 6);
+  std::cout << "Hessian: " << hessian << std::endl;
+  // Compute eigenvalues safely
+  Eigen::SelfAdjointEigenSolver<Eigen::Matrix<double, 6, 6>> eigensolver(
+      hessian);
+  CHECK(eigensolver.info() == Eigen::Success)
+      << "Eigenvalue computation failed";
   // Obtain eigenvalue
-  Eigen::Vector3d eigenvalues = eigensolver.eigenvalues();
+  Eigen::Matrix<double, 6, 1> eigenvalues = eigensolver.eigenvalues();
 
   // Condition number
-  double condNumber = eigenvalues.maxCoeff() / eigenvalues.minCoeff();
+  double min_coeff = eigenvalues.minCoeff();
+  double condition_number;
+  if (min_coeff != 0) {
+    condition_number = eigenvalues.maxCoeff() / min_coeff;
+  } else {
+    condition_number = std::numeric_limits<double>::infinity();
+  }
 
   // take logarithm
-  double logCondNumber = std::log(condNumber);
-
-  LOG(INFO) << "Condition number about current KF: " << curr_kf_id_ << " is " << condNumber;
-  LOG(INFO) << "Logarithm of condition number: " << logCondNumber;
+  double log_cond_number = std::log(condition_number);
+  LOG(INFO) << "Condition number calculation for current KF: " << curr_kf_id_;
+  LOG(INFO) << "Eigenvalues: " << eigenvalues.transpose();
+  LOG(INFO) << "Maximum eigenvalue: " << eigenvalues.maxCoeff();
+  LOG(INFO) << "Minimum eigenvalue: " << eigenvalues.minCoeff();
+  LOG(INFO) << "Condition number: " << condition_number;
+  LOG(INFO) << "Logarithm of condition number (base e): " << log_cond_number;
 }
 
 }  // namespace VIO.

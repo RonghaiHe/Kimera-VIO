@@ -44,11 +44,11 @@
 #endif
 #include <gtsam_unstable/slam/SmartStereoProjectionPoseFactor.h>
 
+#include <cmath>
 #include <fstream>
 #include <iostream>
 #include <memory>
 #include <unordered_map>
-#include <cmath>
 
 #include "kimera-vio/backend/VioBackend-definitions.h"
 #include "kimera-vio/backend/VioBackendParams.h"
@@ -429,7 +429,8 @@ class VioBackend {
   // Reset state of debug info.
   void resetDebugInfo(DebugVioInfo* debug_info);
 
-  void computeConditionNumber();
+  void computeConditionNumber(
+      const boost::shared_ptr<gtsam::NonlinearFactor> factor_between_frames);
 
  public:
   /// Getters
