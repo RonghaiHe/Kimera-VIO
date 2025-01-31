@@ -345,6 +345,8 @@ StatusStereoMeasurementsPtr StereoVisionImuFrontend::processStereoFrame(
     tracker_status_summary_.kfTrackingStatus_mono_ = TrackingStatus::INVALID;
     tracker_status_summary_.kfTrackingStatus_stereo_ = TrackingStatus::INVALID;
 
+    tracker_status_summary_.lkf_T_k_old_ = keyframe_R_cur_frame;
+
     double sparse_stereo_time = 0;
     if (frontend_params_.useRANSAC_) {
       // MONO geometric outlier rejection
@@ -414,6 +416,8 @@ StatusStereoMeasurementsPtr StereoVisionImuFrontend::processStereoFrame(
     // If its been long enough, make it a keyframe
     last_keyframe_timestamp_ = stereoFrame_k_->timestamp_;
     stereoFrame_k_->setIsKeyframe(true);
+
+    computeConditionNumber();
 
     // Perform feature detection (note: this must be after RANSAC,
     // since if we discard more features, we need to extract more)
@@ -580,8 +584,8 @@ void StereoVisionImuFrontend::sendStereoMatchesToLogger() const {
                 "in right frame.";
   }
 
-  //############################################################################
-  // Plot matches.
+  // ############################################################################
+  //  Plot matches.
   cv::Mat img_left_right =
       UtilsOpenCV::DrawCornersMatches(img_left,
                                       left_frame_k.keypoints_,
@@ -602,7 +606,7 @@ void StereoVisionImuFrontend::sendStereoMatchesToLogger() const {
                           "/stereoMatchingUnrectifiedImg/",
                           FLAGS_visualize_frontend_images,
                           FLAGS_save_frontend_images);
-  //############################################################################
+  // ############################################################################
 
   // Display rectified, plot matches.
   static constexpr bool kUseRandomColor = false;
@@ -646,7 +650,7 @@ void StereoVisionImuFrontend::sendMonoTrackingToLogger() const {
       }
     }
   }
-  //############################################################################
+  // ############################################################################
 
   // Plot matches.
   cv::Mat img_left_lkf_kf =
@@ -670,7 +674,7 @@ void StereoVisionImuFrontend::sendMonoTrackingToLogger() const {
                           "/monoTrackingUnrectifiedImg/",
                           FLAGS_visualize_frontend_images,
                           FLAGS_save_frontend_images);
-  //############################################################################
+  // ############################################################################
 
   // Display rectified, plot matches.
   static constexpr bool kUseRandomColor = false;

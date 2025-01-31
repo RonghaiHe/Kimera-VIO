@@ -212,6 +212,8 @@ bool VisionImuFrontend::shouldBeKeyframe(const Frame& frame,
     return false;  // no keyframe conditions are met
   }
 
+  tracker_->matches_lkf_cur_ = matches_ref_cur;
+
   VLOG(2) << "Keyframe after [s]: " << UtilsNumerical::NsecToSec(kf_diff_ns);
 
   // log why a keyframe was detected
@@ -299,6 +301,87 @@ VisionImuFrontend::getExternalOdometryWorldVelocity(
   // NOTE: typical odometry is not suitable for this since the vel estimate
   // in the world frame will not have a bounded error.
   return (*input->world_NavState_ext_odom_).velocity();
+}
+
+/**
+ * @brief Computes the condition number of the transformation matrix
+ *        to check if the transformation is well conditioned.
+ *
+ * @param lkf_stereo_frame Last keyframe stereo frame.
+ * @param cur_stereo_frame Current stereo frame.
+ */
+void VisionImuFrontend::computeConditionNumber(StereoFrame* lkf_stereo_frame,
+                                               StereoFrame* cur_stereo_frame) {
+  gtsam::Pose3 lkf_T_cur;
+  if (frontend_params_.useRANSAC_) {
+    if (frontend_params_.use_pnp_tracking_ &&
+        tracker_status_summary_.kfTracking_status_pnp_ == TrackingStatus::VALID)
+      lkf_T_cur = tracker_status_summary_.W_T_k_pnp_;
+    else if (frontend_params_.use_stereo_tracking_ &&
+             tracker_status_summary_.kfTrackingStatus_stereo_ ==
+                 TrackingStatus::VALID)
+      lkf_T_cur = tracker_status_summary_.lkf_T_k_stereo_;
+    else if (tracker_status_summary_.kfTrackingStatus_mono_ ==
+             TrackingStatus::VALID)
+      lkf_T_cur = tracker_status_summary_.lkf_T_k_mono_;
+    else {
+      lkf_T_cur = tracker_status_summary_.lkf_T_k_old_;
+    }
+  }
+
+  // Compute the condition number of the transformation matrix
+  // to check if the transformation is well conditioned.
+
+  // tracker_status_summary_.second
+  // tracker_->matches_lkf_cur_
+  Eigen::Matrix<double, 6, 6> hessian = Eigen::Matrix<double, 6, 6>::Zero();
+  Eigen::Matrix<double, 1, 6> jacobian;
+  for (const auto& [lkf_keypoint_ind, cur_keypoint_ind] :
+       tracker_->matches_lkf_cur_) {
+    // Get the corresponding keypoint
+    const Landmark& lkf_keypoint =
+        lkf_stereo_frame->keypoints_3d_.at(lkf_keypoint_ind);
+    const Landmark& cur_keypoint =
+        cur_stereo_frame->keypoints_3d_.at(cur_keypoint_ind);
+    Eigen::Matrix<double, 1, 3> residual_T =
+        (lkf_T_cur.transformFrom(lkf_keypoint) - cur_keypoint).transpose();
+    Eigen::Matrix<double, 3, 1> transform_keypoint =
+        lkf_T_cur.transform_from(lkf_keypoint);
+    jacobian = Eigen::Matrix<double, 1, 6>::Zero();
+    jacobian.block<1, 3>(0, 0) = residual_T;
+    jacobian.block<1, 3>(0, 3) =
+        residual_T * gtsam::skewSymmetric(transform_keypoint);
+
+    // Compute the Hessian
+    hessian += jacobian.transpose() * jacobian;
+  }
+
+  // Compute eigenvalues safely
+  Eigen::SelfAdjointEigenSolver<Eigen::Matrix<double, 6, 6>> eigensolver(
+      hessian);
+  CHECK(eigensolver.info() == Eigen::Success)
+      << "Eigenvalue computation failed";
+  // Obtain eigenvalue
+  Eigen::Matrix<double, 6, 1> eigenvalues = eigensolver.eigenvalues();
+
+  // Condition number
+  double min_coeff = eigenvalues.minCoeff();
+  double condition_number;
+  if (min_coeff != 0) {
+    condition_number = eigenvalues.maxCoeff() / min_coeff;
+  } else {
+    condition_number = std::numeric_limits<double>::infinity();
+  }
+
+  // take logarithm
+  double log_cond_number = std::log(condition_number);
+  // LOG(INFO) << "Condition number calculation for current KF: " <<
+  // curr_kf_id_;
+  LOG(INFO) << "Eigenvalues: " << eigenvalues.transpose();
+  LOG(INFO) << "Maximum eigenvalue: " << eigenvalues.maxCoeff();
+  LOG(INFO) << "Minimum eigenvalue: " << eigenvalues.minCoeff();
+  LOG(INFO) << "Condition number: " << condition_number;
+  LOG(INFO) << "Logarithm of condition number (base e): " << log_cond_number;
 }
 
 }  // namespace VIO

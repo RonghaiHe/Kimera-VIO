@@ -14,27 +14,25 @@
 
 #pragma once
 
-#include <string>
-
 #include <glog/logging.h>
-
-#include <gtsam/geometry/Pose3.h>
 #include <gtsam/base/Matrix.h>
+#include <gtsam/geometry/Pose3.h>
+
+#include <string>
 
 // OpenGV for Ransac
 // TODO clean this includes!! some are only needed in cpp of tracker.
-#include <opengv/sac/Ransac.hpp>
-#include <opengv/sac_problems/relative_pose/TranslationOnlySacProblem.hpp>
-#include <opengv/sac_problems/relative_pose/CentralRelativePoseSacProblem.hpp>
-#include <opengv/relative_pose/methods.hpp>
-#include <opengv/relative_pose/CentralRelativeAdapter.hpp>
-#include <opengv/triangulation/methods.hpp>
-#include <opengv/sac_problems/point_cloud/PointCloudSacProblem.hpp>
-#include <opengv/point_cloud/methods.hpp>
-#include <opengv/point_cloud/PointCloudAdapter.hpp>
-
 #include <opengv/absolute_pose/CentralAbsoluteAdapter.hpp>
+#include <opengv/point_cloud/PointCloudAdapter.hpp>
+#include <opengv/point_cloud/methods.hpp>
+#include <opengv/relative_pose/CentralRelativeAdapter.hpp>
+#include <opengv/relative_pose/methods.hpp>
+#include <opengv/sac/Ransac.hpp>
 #include <opengv/sac_problems/absolute_pose/AbsolutePoseSacProblem.hpp>
+#include <opengv/sac_problems/point_cloud/PointCloudSacProblem.hpp>
+#include <opengv/sac_problems/relative_pose/CentralRelativePoseSacProblem.hpp>
+#include <opengv/sac_problems/relative_pose/TranslationOnlySacProblem.hpp>
+#include <opengv/triangulation/methods.hpp>
 
 #include "kimera-vio/common/vio_types.h"
 
@@ -76,7 +74,7 @@ enum class Pose3d2dAlgorithm {
 
 ////////////////////////////////////////////////////////////////////////////////
 class DebugTrackerInfo {
-public:
+ public:
   // Info about feature detection, tracking and ransac.
   size_t nrDetectedFeatures_ = 0, nrTrackerFeatures_ = 0, nrMonoInliers_ = 0;
   size_t nrMonoPutatives_ = 0, nrStereoInliers_ = 0, nrStereoPutatives_ = 0;
@@ -118,7 +116,6 @@ public:
               << "nrNoDepthRKP_: " << nrNoDepthRKP_ << "\n"
               << "nrFailedArunRKP_: " << nrFailedArunRKP_;
   }
-
 };
 
 enum class TrackingStatus {
@@ -132,49 +129,50 @@ typedef std::pair<TrackingStatus, gtsam::Pose3> TrackingStatusPose;
 
 ////////////////////////////////////////////////////////////////////////////////
 class TrackerStatusSummary {
-public:
- TrackerStatusSummary()
-     : kfTrackingStatus_mono_(TrackingStatus::INVALID),
-       kfTrackingStatus_stereo_(TrackingStatus::INVALID),
-       kfTracking_status_pnp_(TrackingStatus::INVALID),
-       lkf_T_k_mono_(gtsam::Pose3()),
-       lkf_T_k_stereo_(gtsam::Pose3()),
-       W_T_k_pnp_(gtsam::Pose3()),
-       infoMatStereoTranslation_(gtsam::Matrix3::Zero()) {}
+ public:
+  TrackerStatusSummary()
+      : kfTrackingStatus_mono_(TrackingStatus::INVALID),
+        kfTrackingStatus_stereo_(TrackingStatus::INVALID),
+        kfTracking_status_pnp_(TrackingStatus::INVALID),
+        lkf_T_k_mono_(gtsam::Pose3()),
+        lkf_T_k_stereo_(gtsam::Pose3()),
+        W_T_k_pnp_(gtsam::Pose3()),
+        infoMatStereoTranslation_(gtsam::Matrix3::Zero()) {}
 
- /* ------------------------------------------------------------------------ */
- // Returns the tracking status as a string for debugging
- static std::string asString(const TrackingStatus& status) {
-   std::string status_str = "";
-   switch (status) {
-     case TrackingStatus::VALID: {
-       status_str = "VALID";
-       break;
-     }
-     case TrackingStatus::INVALID: {
-       status_str = "INVALID";
-       break;
-     }
-     case TrackingStatus::DISABLED: {
-       status_str = "DISABLED";
-       break;
-     }
-     case TrackingStatus::FEW_MATCHES: {
-       status_str = "FEW_MATCHES";
-       break;
-     }
-     case TrackingStatus::LOW_DISPARITY: {
-       status_str = "LOW_DISPARITY";
-       break;
-     }
-   }
-   return status_str;
+  /* ------------------------------------------------------------------------ */
+  // Returns the tracking status as a string for debugging
+  static std::string asString(const TrackingStatus& status) {
+    std::string status_str = "";
+    switch (status) {
+      case TrackingStatus::VALID: {
+        status_str = "VALID";
+        break;
+      }
+      case TrackingStatus::INVALID: {
+        status_str = "INVALID";
+        break;
+      }
+      case TrackingStatus::DISABLED: {
+        status_str = "DISABLED";
+        break;
+      }
+      case TrackingStatus::FEW_MATCHES: {
+        status_str = "FEW_MATCHES";
+        break;
+      }
+      case TrackingStatus::LOW_DISPARITY: {
+        status_str = "LOW_DISPARITY";
+        break;
+      }
+    }
+    return status_str;
   }
 
-public:
+ public:
   TrackingStatus kfTrackingStatus_mono_;
   TrackingStatus kfTrackingStatus_stereo_;
   TrackingStatus kfTracking_status_pnp_;
+  gtsam::Pose3 lkf_T_k_old_;
   gtsam::Pose3 lkf_T_k_mono_;
   gtsam::Pose3 lkf_T_k_stereo_;
   gtsam::Pose3 W_T_k_pnp_;
@@ -187,4 +185,4 @@ typedef std::pair<KeypointsCV, KeypointScores> KeypointsWithScores;
 typedef std::pair<size_t, size_t> KeypointMatch;
 typedef std::vector<std::pair<size_t, size_t>> KeypointMatches;
 
-} // End of VIO namespace.
+}  // namespace VIO

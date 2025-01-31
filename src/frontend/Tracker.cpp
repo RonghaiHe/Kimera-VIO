@@ -765,6 +765,8 @@ TrackingStatusPose Tracker::geometricOutlierRejection3d3d(
     removeOutliersStereo(
         inliers, ref_stereo_frame, cur_stereo_frame, &matches_ref_cur);
   }
+  if (result.first == TrackingStatus::VALID)
+    cur_stereo_frame->matches_lkf_cur_ = matches_ref_cur;
   return result;
 }
 
