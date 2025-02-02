@@ -124,6 +124,7 @@ class StereoVisionImuFrontend : public VisionImuFrontend {
   StatusStereoMeasurementsPtr processStereoFrame(
       const StereoFrame& cur_frame,
       const gtsam::Rot3& keyframe_R_ref_frame,
+      const gtsam::Point3& keyframe_t_ref_frame,
       cv::Mat* feature_tracks = nullptr);
 
   /* ------------------------------------------------------------------------ */

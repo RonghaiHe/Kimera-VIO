@@ -314,6 +314,7 @@ void VisionImuFrontend::computeConditionNumber(StereoFrame* lkf_stereo_frame,
                                                StereoFrame* cur_stereo_frame) {
   gtsam::Pose3 lkf_T_cur;
   if (frontend_params_.useRANSAC_) {
+    // temporary no use
     if (frontend_params_.use_pnp_tracking_ &&
         tracker_status_summary_.kfTracking_status_pnp_ == TrackingStatus::VALID)
       lkf_T_cur = tracker_status_summary_.W_T_k_pnp_;

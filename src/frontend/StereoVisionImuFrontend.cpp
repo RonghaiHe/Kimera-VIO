@@ -149,6 +149,8 @@ StereoFrontendOutput::UniquePtr StereoVisionImuFrontend::nominalSpinStereo(
   gtsam::Rot3 camLrectLkf_R_camLrectK_imu =
       cam_Rot_body * pim->deltaRij() * body_Rot_cam;
 
+  gtsam::Point3 camLrectLkf_t_camLrectK_imu = cam_Rot_body * pim->deltaPij();
+
   if (VLOG_IS_ON(10)) {
     body_Rot_cam.print("Body_Rot_cam");
     camLrectLkf_R_camLrectK_imu.print("calLrectLkf_R_camLrectK_imu");
@@ -160,8 +162,11 @@ StereoFrontendOutput::UniquePtr StereoVisionImuFrontend::nominalSpinStereo(
   // Rotation used in 1 and 2 point ransac.
   VLOG(10) << "Starting processStereoFrame...";
   cv::Mat feature_tracks;
-  StatusStereoMeasurementsPtr status_stereo_measurements = processStereoFrame(
-      stereoFrame_k, camLrectLkf_R_camLrectK_imu, &feature_tracks);
+  StatusStereoMeasurementsPtr status_stereo_measurements =
+      processStereoFrame(stereoFrame_k,
+                         camLrectLkf_R_camLrectK_imu,
+                         camLrectLkf_t_camLrectK_imu,
+                         &feature_tracks);
 
   CHECK(!stereoFrame_k_);  // processStereoFrame is setting this to nullptr!!!
   VLOG(10) << "Finished processStereoFrame.";
@@ -283,6 +288,7 @@ void StereoVisionImuFrontend::processFirstStereoFrame(
 StatusStereoMeasurementsPtr StereoVisionImuFrontend::processStereoFrame(
     const StereoFrame& cur_frame,
     const gtsam::Rot3& keyframe_R_cur_frame,
+    const gtsam::Point3& keyframe_t_ref_frame,
     cv::Mat* feature_tracks) {
   CHECK(tracker_);
   VLOG(2) << "===================================================\n"
@@ -345,7 +351,8 @@ StatusStereoMeasurementsPtr StereoVisionImuFrontend::processStereoFrame(
     tracker_status_summary_.kfTrackingStatus_mono_ = TrackingStatus::INVALID;
     tracker_status_summary_.kfTrackingStatus_stereo_ = TrackingStatus::INVALID;
 
-    tracker_status_summary_.lkf_T_k_old_ = keyframe_R_cur_frame;
+    tracker_status_summary_.lkf_T_k_old_ =
+        pose(keyframe_R_cur_frame, keyframe_t_ref_frame);
 
     double sparse_stereo_time = 0;
     if (frontend_params_.useRANSAC_) {

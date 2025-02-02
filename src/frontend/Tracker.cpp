@@ -367,6 +367,9 @@ TrackingStatusPose Tracker::geometricOutlierRejection2d2d(
           LOG(INFO) << "Low mono disparity.";
           result.first = TrackingStatus::LOW_DISPARITY;
         }
+        else{
+          matches_lkf_cur_ = matches_ref_cur;
+        }
       } else {
         LOG(ERROR) << "Median disparity calculation failed...";
       }

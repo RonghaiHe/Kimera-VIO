@@ -178,6 +178,9 @@ class VisionImuFrontend {
   std::optional<gtsam::Velocity3> getExternalOdometryWorldVelocity(
       FrontendInputPacketBase* input) const;
 
+  void computeConditionNumber(StereoFrame* lkf_stereo_frame,
+                              StereoFrame* cur_stereo_frame);
+
  protected:
   //! Parameters
   FrontendParams frontend_params_;
