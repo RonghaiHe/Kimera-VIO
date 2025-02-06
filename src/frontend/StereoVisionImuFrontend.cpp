@@ -352,7 +352,7 @@ StatusStereoMeasurementsPtr StereoVisionImuFrontend::processStereoFrame(
     tracker_status_summary_.kfTrackingStatus_stereo_ = TrackingStatus::INVALID;
 
     tracker_status_summary_.lkf_T_k_old_ =
-        pose(keyframe_R_cur_frame, keyframe_t_ref_frame);
+        gtsam::Pose3(keyframe_R_cur_frame, keyframe_t_ref_frame);
 
     double sparse_stereo_time = 0;
     if (frontend_params_.useRANSAC_) {
@@ -424,7 +424,7 @@ StatusStereoMeasurementsPtr StereoVisionImuFrontend::processStereoFrame(
     last_keyframe_timestamp_ = stereoFrame_k_->timestamp_;
     stereoFrame_k_->setIsKeyframe(true);
 
-    computeConditionNumber();
+    computeConditionNumber(*stereoFrame_lkf_, *stereoFrame_k_);
 
     // Perform feature detection (note: this must be after RANSAC,
     // since if we discard more features, we need to extract more)

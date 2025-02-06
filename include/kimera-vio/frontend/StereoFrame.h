@@ -165,9 +165,6 @@ class StereoFrame {
   //! disparity; in the rectified left frame.
   // TODO(TONI): this should use the eigen's default allocator...
   Landmarks keypoints_3d_;
-
-  // matches from reference to current frame
-  KeypointMatches matches_lkf_cur_;
 };
 
 }  // namespace VIO

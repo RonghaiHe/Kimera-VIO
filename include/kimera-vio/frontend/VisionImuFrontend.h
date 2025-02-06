@@ -136,7 +136,7 @@ class VisionImuFrontend {
   virtual FrontendOutputPacketBase::UniquePtr nominalSpin(
       FrontendInputPacketBase::UniquePtr&& input) = 0;
 
-  virtual bool shouldBeKeyframe(const Frame& frame, const Frame& lkf) const;
+  virtual bool shouldBeKeyframe(Frame& frame, const Frame& lkf) const;
 
   /* ------------------------------------------------------------------------ */
   // Reset ImuFrontend gravity. Trivial gravity is needed for initial alignment.
@@ -178,8 +178,8 @@ class VisionImuFrontend {
   std::optional<gtsam::Velocity3> getExternalOdometryWorldVelocity(
       FrontendInputPacketBase* input) const;
 
-  void computeConditionNumber(StereoFrame* lkf_stereo_frame,
-                              StereoFrame* cur_stereo_frame);
+  void computeConditionNumber(StereoFrame& lkf_stereo_frame,
+                              StereoFrame& cur_stereo_frame);
 
  protected:
   //! Parameters

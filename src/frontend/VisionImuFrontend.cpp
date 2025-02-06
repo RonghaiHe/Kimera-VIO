@@ -172,7 +172,7 @@ void VisionImuFrontend::outlierRejectionPnP(
   }
 }
 
-bool VisionImuFrontend::shouldBeKeyframe(const Frame& frame,
+bool VisionImuFrontend::shouldBeKeyframe(Frame& frame,
                                          const Frame& frame_lkf) const {
   const Timestamp kf_diff_ns = frame.timestamp_ - frame_lkf.timestamp_;
   const size_t nr_valid_features = frame.getNrValidKeypoints();
@@ -212,7 +212,7 @@ bool VisionImuFrontend::shouldBeKeyframe(const Frame& frame,
     return false;  // no keyframe conditions are met
   }
 
-  tracker_->matches_lkf_cur_ = matches_ref_cur;
+  frame.matches_lkf_cur_ = matches_ref_cur;
 
   VLOG(2) << "Keyframe after [s]: " << UtilsNumerical::NsecToSec(kf_diff_ns);
 
@@ -310,8 +310,8 @@ VisionImuFrontend::getExternalOdometryWorldVelocity(
  * @param lkf_stereo_frame Last keyframe stereo frame.
  * @param cur_stereo_frame Current stereo frame.
  */
-void VisionImuFrontend::computeConditionNumber(StereoFrame* lkf_stereo_frame,
-                                               StereoFrame* cur_stereo_frame) {
+void VisionImuFrontend::computeConditionNumber(StereoFrame& lkf_stereo_frame,
+                                               StereoFrame& cur_stereo_frame) {
   gtsam::Pose3 lkf_T_cur;
   if (frontend_params_.useRANSAC_) {
     // temporary no use
@@ -320,12 +320,15 @@ void VisionImuFrontend::computeConditionNumber(StereoFrame* lkf_stereo_frame,
       lkf_T_cur = tracker_status_summary_.W_T_k_pnp_;
     else if (frontend_params_.use_stereo_tracking_ &&
              tracker_status_summary_.kfTrackingStatus_stereo_ ==
-                 TrackingStatus::VALID)
+                 TrackingStatus::VALID) {
+      LOG(INFO) << "Using stereo tracking for condition number calculation";
       lkf_T_cur = tracker_status_summary_.lkf_T_k_stereo_;
-    else if (tracker_status_summary_.kfTrackingStatus_mono_ ==
-             TrackingStatus::VALID)
+    } else if (tracker_status_summary_.kfTrackingStatus_mono_ ==
+               TrackingStatus::VALID) {
+      LOG(INFO) << "Using mono tracking for condition number calculation";
       lkf_T_cur = tracker_status_summary_.lkf_T_k_mono_;
-    else {
+    } else {
+      LOG(INFO) << "Using IMU tracking for condition number calculation";
       lkf_T_cur = tracker_status_summary_.lkf_T_k_old_;
     }
   }
@@ -337,26 +340,31 @@ void VisionImuFrontend::computeConditionNumber(StereoFrame* lkf_stereo_frame,
   // tracker_->matches_lkf_cur_
   Eigen::Matrix<double, 6, 6> hessian = Eigen::Matrix<double, 6, 6>::Zero();
   Eigen::Matrix<double, 1, 6> jacobian;
+  // LOG(INFO) << "Size of keypoints of lkf: " << lkf_stereo_frame.keypoints_3d_.size();
+  // LOG(INFO) << "Size of keypoints of cur: " << cur_stereo_frame.keypoints_3d_.size();
   for (const auto& [lkf_keypoint_ind, cur_keypoint_ind] :
-       tracker_->matches_lkf_cur_) {
+       cur_stereo_frame.left_frame_.matches_lkf_cur_) {
+    // LOG(INFO) << "Keypoint indices: " << lkf_keypoint_ind << " " << cur_keypoint_ind;
     // Get the corresponding keypoint
     const Landmark& lkf_keypoint =
-        lkf_stereo_frame->keypoints_3d_.at(lkf_keypoint_ind);
+        lkf_stereo_frame.keypoints_3d_.at(lkf_keypoint_ind);
     const Landmark& cur_keypoint =
-        cur_stereo_frame->keypoints_3d_.at(cur_keypoint_ind);
+        cur_stereo_frame.keypoints_3d_.at(cur_keypoint_ind);
     Eigen::Matrix<double, 1, 3> residual_T =
         (lkf_T_cur.transformFrom(lkf_keypoint) - cur_keypoint).transpose();
+    // LOG(INFO) << "Residual: " << residual_T;
     Eigen::Matrix<double, 3, 1> transform_keypoint =
-        lkf_T_cur.transform_from(lkf_keypoint);
-    jacobian = Eigen::Matrix<double, 1, 6>::Zero();
+        lkf_T_cur.transformFrom(lkf_keypoint);
+    // jacobian = Eigen::Matrix<double, 1, 6>::Zero();
     jacobian.block<1, 3>(0, 0) = residual_T;
     jacobian.block<1, 3>(0, 3) =
-        residual_T * gtsam::skewSymmetric(transform_keypoint);
-
+        -residual_T * gtsam::skewSymmetric(transform_keypoint);
+    // LOG(INFO) << "Jacobian: " << jacobian;
     // Compute the Hessian
     hessian += jacobian.transpose() * jacobian;
   }
-
+  hessian *= 4;
+  LOG(INFO) << "Hessian: " << hessian; 
   // Compute eigenvalues safely
   Eigen::SelfAdjointEigenSolver<Eigen::Matrix<double, 6, 6>> eigensolver(
       hessian);

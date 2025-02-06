@@ -366,9 +366,8 @@ TrackingStatusPose Tracker::geometricOutlierRejection2d2d(
         if (disparity < tracker_params_.disparityThreshold_) {
           LOG(INFO) << "Low mono disparity.";
           result.first = TrackingStatus::LOW_DISPARITY;
-        }
-        else{
-          matches_lkf_cur_ = matches_ref_cur;
+        } else {
+          cur_frame->matches_lkf_cur_ = matches_ref_cur;
         }
       } else {
         LOG(ERROR) << "Median disparity calculation failed...";
@@ -769,7 +768,7 @@ TrackingStatusPose Tracker::geometricOutlierRejection3d3d(
         inliers, ref_stereo_frame, cur_stereo_frame, &matches_ref_cur);
   }
   if (result.first == TrackingStatus::VALID)
-    cur_stereo_frame->matches_lkf_cur_ = matches_ref_cur;
+    cur_stereo_frame->left_frame_.matches_lkf_cur_ = matches_ref_cur;
   return result;
 }
 
