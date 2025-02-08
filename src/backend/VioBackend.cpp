@@ -1037,6 +1037,7 @@ bool VioBackend::optimize(
     const Timestamp& timestamp_kf_nsec,
     const FrameId& cur_id,
     const size_t& max_extra_iterations,
+    const TrackerStatusSummary& tracker_status,
     const gtsam::FactorIndices& extra_factor_slots_to_delete) {
   DCHECK(smoother_) << "Incremental smoother is a null pointer.";
 
@@ -1240,6 +1241,10 @@ bool VioBackend::optimize(
         computeStateCovariance();
       }
 
+      if (cur_id > 0 && tracker_status.measurements_lkf_.size() > 0)
+        computeConditionNumberBackend(tracker_status.measurements_lkf_,
+                                      tracker_status.measurements_cur_);
+
       // Debug.
       postDebug(total_start_time, start_time);
     } else {
@@ -1348,7 +1353,7 @@ void VioBackend::updateStates(const FrameId& cur_id) {
   gtsam::Pose3 W_Pose_B_kf =
       state_.at<gtsam::Pose3>(gtsam::Symbol(kPoseSymbolChar, cur_id));
   gtsam::Pose3 W_Pose_B_lkf = gtsam::Pose3();
-  gtsam::Pose3 B_lkf_Pose_kf = gtsam::Pose3();
+  // gtsam::Pose3 B_lkf_Pose_kf = gtsam::Pose3();
 
   // If we have an available pose at cur_id - 1 we use it, otw identity
   // gives us W_Pose_B_lkf as our current pose estimate.
@@ -1359,7 +1364,7 @@ void VioBackend::updateStates(const FrameId& cur_id) {
         state_.at<gtsam::Pose3>(gtsam::Symbol(kPoseSymbolChar, cur_id - 1));
 
     // Compute relative pose as odometry to append to pose estimate trajectory
-    B_lkf_Pose_kf = W_Pose_B_lkf.between(W_Pose_B_kf);
+    B_lkf_Pose_kf_ = W_Pose_B_lkf.between(W_Pose_B_kf);
   }
 
   // Update latest state estimate
@@ -1370,7 +1375,7 @@ void VioBackend::updateStates(const FrameId& cur_id) {
 
   // Update output estimate by chaining relative motion estimates
   W_Pose_B_lkf_from_increments_ =
-      W_Pose_B_lkf_from_increments_.compose(B_lkf_Pose_kf);
+      W_Pose_B_lkf_from_increments_.compose(B_lkf_Pose_kf_);
 
   VLOG(1) << "Backend: Update IMU Bias.";
   CHECK(imu_bias_update_callback_) << "Did you forget to register the IMU bias "
@@ -2320,6 +2325,74 @@ bool VioBackend::deleteLmkFromFeatureTracks(const LandmarkId& lmk_id) {
     return true;
   }
   return false;
+}
+
+/**
+ * @brief Computes the condition number of the transformation matrix
+ *        to check if the transformation is well conditioned.
+ *
+ * @param lkf_stereo_frame Last keyframe stereo frame.
+ * @param cur_stereo_frame Current stereo frame.
+ */
+void VioBackend::computeConditionNumberBackend(const Landmarks& mea_lkf,
+                                               const Landmarks& mea_cur) {
+  // Compute the condition number of the transformation matrix
+  // to check if the transformation is well conditioned.
+
+  CHECK_EQ(mea_lkf.size(), mea_cur.size());
+
+  Eigen::Matrix<double, 6, 6> hessian = Eigen::Matrix<double, 6, 6>::Zero();
+  Eigen::Matrix<double, 1, 6> jacobian;
+  // LOG(INFO) << "Size of keypoints of lkf: " <<
+  // lkf_stereo_frame.keypoints_3d_.size(); LOG(INFO) << "Size of keypoints of
+  // cur: " << cur_stereo_frame.keypoints_3d_.size();
+  for (int i = 0; i < mea_lkf.size(); i++) {
+    // LOG(INFO) << "Keypoint indices: " << lkf_keypoint_ind << " " <<
+    // cur_keypoint_ind; Get the corresponding keypoint
+    const Landmark& lkf_keypoint = mea_lkf.at(i);
+    const Landmark& cur_keypoint = mea_cur.at(i);
+    Eigen::Matrix<double, 1, 3> residual_T =
+        (B_lkf_Pose_kf_.transformFrom(lkf_keypoint) - cur_keypoint).transpose();
+    // LOG(INFO) << "Residual: " << residual_T;
+    Eigen::Matrix<double, 3, 1> transform_keypoint =
+        B_lkf_Pose_kf_.transformFrom(lkf_keypoint);
+    // jacobian = Eigen::Matrix<double, 1, 6>::Zero();
+    jacobian.block<1, 3>(0, 0) = residual_T;
+    jacobian.block<1, 3>(0, 3) =
+        -residual_T * gtsam::skewSymmetric(transform_keypoint);
+    // LOG(INFO) << "Jacobian: " << jacobian;
+    // Compute the Hessian
+    hessian += jacobian.transpose() * jacobian;
+  }
+  hessian *= 4;
+  // LOG(INFO) << "Hessian: " << hessian;
+  // Compute eigenvalues safely
+  Eigen::SelfAdjointEigenSolver<Eigen::Matrix<double, 6, 6>> eigensolver(
+      hessian);
+  CHECK(eigensolver.info() == Eigen::Success)
+      << "Eigenvalue computation failed";
+  // Obtain eigenvalue
+  Eigen::Matrix<double, 6, 1> eigenvalues = eigensolver.eigenvalues();
+
+  // Condition number
+  double min_coeff = eigenvalues.minCoeff();
+  double condition_number;
+  if (min_coeff != 0) {
+    condition_number = eigenvalues.maxCoeff() / min_coeff;
+  } else {
+    condition_number = std::numeric_limits<double>::infinity();
+  }
+
+  // take logarithm
+  double log_cond_number = std::log(condition_number);
+  // LOG(INFO) << "Condition number calculation for current KF: " <<
+  // curr_kf_id_;
+  LOG(INFO) << "Size of landmarks: " << mea_lkf.size();
+  // LOG(INFO) << "Eigenvalues: " << eigenvalues.transpose();
+  LOG(INFO) << "Maximum eigenvalue: " << eigenvalues.maxCoeff();
+  LOG(INFO) << "Minimum eigenvalue: " << eigenvalues.minCoeff();
+  // LOG(INFO) << "Condition number: " << condition_number;
+  LOG(INFO) << "Logarithm of condition number (base e): " << log_cond_number;
 }
 
 }  // namespace VIO.

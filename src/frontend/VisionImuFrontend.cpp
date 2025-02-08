@@ -364,7 +364,7 @@ void VisionImuFrontend::computeConditionNumber(StereoFrame& lkf_stereo_frame,
     hessian += jacobian.transpose() * jacobian;
   }
   hessian *= 4;
-  LOG(INFO) << "Hessian: " << hessian; 
+  // LOG(INFO) << "Hessian: " << hessian; 
   // Compute eigenvalues safely
   Eigen::SelfAdjointEigenSolver<Eigen::Matrix<double, 6, 6>> eigensolver(
       hessian);
@@ -386,11 +386,13 @@ void VisionImuFrontend::computeConditionNumber(StereoFrame& lkf_stereo_frame,
   double log_cond_number = std::log(condition_number);
   // LOG(INFO) << "Condition number calculation for current KF: " <<
   // curr_kf_id_;
-  LOG(INFO) << "Eigenvalues: " << eigenvalues.transpose();
+  
+  // LOG(INFO) << "Eigenvalues: " << eigenvalues.transpose();
   LOG(INFO) << "Maximum eigenvalue: " << eigenvalues.maxCoeff();
   LOG(INFO) << "Minimum eigenvalue: " << eigenvalues.minCoeff();
-  LOG(INFO) << "Condition number: " << condition_number;
+  // LOG(INFO) << "Condition number: " << condition_number;
   LOG(INFO) << "Logarithm of condition number (base e): " << log_cond_number;
+  LOG(INFO) << "Size of landmarks: " << cur_stereo_frame.left_frame_.matches_lkf_cur_.size();
 }
 
 }  // namespace VIO

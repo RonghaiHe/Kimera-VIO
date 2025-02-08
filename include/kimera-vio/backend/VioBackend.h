@@ -283,6 +283,7 @@ class VioBackend {
   bool optimize(const Timestamp& timestamp_kf_nsec,
                 const FrameId& cur_id,
                 const size_t& max_iterations,
+                const TrackerStatusSummary& tracker_status = TrackerStatusSummary(),
                 const gtsam::FactorIndices& extra_factor_slots_to_delete =
                     gtsam::FactorIndices());
   /// Printers.
@@ -292,6 +293,9 @@ class VioBackend {
       gtsam::NonlinearFactorGraph* new_imu_prior_and_other_factors);
 
   bool deleteLmkFromFeatureTracks(const LandmarkId& lmk_id);
+
+  void computeConditionNumberBackend(const Landmarks& mea_lkf,
+                                     const Landmarks& mea_cur);
 
  private:
   bool addVisualInertialStateAndOptimize(const BackendInput& input);
@@ -472,6 +476,8 @@ class VioBackend {
   Pose3
       W_Pose_B_lkf_from_state_;  //!< Body pose at at k-1 in world coordinates,
                                  //!< straight from VIO smoother_.
+
+  Pose3 B_lkf_Pose_kf_;  //!< Body pose from k-1 to k in body coordinates.
 
   ImuBias imu_bias_prev_kf_;  //!< bias estimate at previous keyframe
 

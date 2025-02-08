@@ -134,9 +134,12 @@ class TrackerStatusSummary {
       : kfTrackingStatus_mono_(TrackingStatus::INVALID),
         kfTrackingStatus_stereo_(TrackingStatus::INVALID),
         kfTracking_status_pnp_(TrackingStatus::INVALID),
+        lkf_T_k_old_(gtsam::Pose3()),
         lkf_T_k_mono_(gtsam::Pose3()),
         lkf_T_k_stereo_(gtsam::Pose3()),
         W_T_k_pnp_(gtsam::Pose3()),
+        measurements_cur_({}),
+        measurements_lkf_({}),
         infoMatStereoTranslation_(gtsam::Matrix3::Zero()) {}
 
   /* ------------------------------------------------------------------------ */
@@ -177,6 +180,8 @@ class TrackerStatusSummary {
   gtsam::Pose3 lkf_T_k_stereo_;
   gtsam::Pose3 W_T_k_pnp_;
   gtsam::Matrix3 infoMatStereoTranslation_;
+  Landmarks measurements_lkf_;
+  Landmarks measurements_cur_;
 };
 
 typedef double KeypointScore;

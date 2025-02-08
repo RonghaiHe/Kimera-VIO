@@ -382,6 +382,7 @@ bool RegularVioBackend::addVisualInertialStateAndOptimize(
   bool is_smoother_ok = optimize(timestamp_kf_nsec,
                                  curr_kf_id_,
                                  backend_params_.numOptimize_,
+                                 status_smart_stereo_measurements_kf.first,
                                  delete_slots);
   VLOG(10) << "Finished optimize.";
 

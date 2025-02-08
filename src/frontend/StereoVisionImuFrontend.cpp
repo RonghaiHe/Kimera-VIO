@@ -425,6 +425,15 @@ StatusStereoMeasurementsPtr StereoVisionImuFrontend::processStereoFrame(
     stereoFrame_k_->setIsKeyframe(true);
 
     computeConditionNumber(*stereoFrame_lkf_, *stereoFrame_k_);
+    
+    tracker_status_summary_.measurements_lkf_.clear();
+    tracker_status_summary_.measurements_cur_.clear();
+    for(auto& [lkf_keypoint_ind, cur_keypoint_ind] : stereoFrame_k_->left_frame_.matches_lkf_cur_) {
+      const Landmark& lkf_keypoint = stereoFrame_lkf_->keypoints_3d_.at(lkf_keypoint_ind);
+      const Landmark& cur_keypoint = stereoFrame_k_->keypoints_3d_.at(cur_keypoint_ind);
+      tracker_status_summary_.measurements_lkf_.emplace_back(lkf_keypoint);
+      tracker_status_summary_.measurements_cur_.emplace_back(cur_keypoint);
+    }
 
     // Perform feature detection (note: this must be after RANSAC,
     // since if we discard more features, we need to extract more)
