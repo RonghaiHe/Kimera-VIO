@@ -63,6 +63,9 @@ class VisionImuFrontend {
   FrontendOutputPacketBase::UniquePtr spinOnce(
       FrontendInputPacketBase::UniquePtr&& input);
 
+  void addRelativeDistanceMeasurement(double distance, Timestamp timestamp);
+
+
   /* ------------------------------------------------------------------------ */
   // Update Imu Bias. This is thread-safe as imu_frontend_->updateBias is
   // thread-safe.
@@ -218,6 +221,8 @@ class VisionImuFrontend {
   std::optional<OdometryParams> odom_params_;
   // world_Pose_body for the last keyframe
   std::optional<gtsam::Pose3> world_OdomPose_body_lkf_;
+
+  ThreadsafeQueue<double> relative_distance_buffer_;
 };
 
 }  // namespace VIO
