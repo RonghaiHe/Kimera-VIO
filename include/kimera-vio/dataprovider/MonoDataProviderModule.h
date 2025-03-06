@@ -31,6 +31,7 @@
 
 #include <glog/logging.h>
 
+#include "kimera-vio/dataprovider/DataProviderInterface.h"
 #include "kimera-vio/dataprovider/DataProviderModule.h"
 #include "kimera-vio/frontend/MonoImuSyncPacket.h"
 #include "kimera-vio/pipeline/Pipeline-definitions.h"
@@ -47,9 +48,13 @@ class MonoDataProviderModule : public DataProviderModule {
 
   MonoDataProviderModule(OutputQueue* output_queue,
                          const std::string& name_id,
-                         const bool& parallel_run);
+                         const bool& parallel_run,
+                         DataProviderInterface* data_provider);
+
 
   virtual ~MonoDataProviderModule() = default;
+  void initializeRelativeDistanceCallback();
+
 
   // Called by spin(), which also calls getInputPacket().
   // Data provider syncs and publishes input sensor information, which
@@ -100,11 +105,15 @@ class MonoDataProviderModule : public DataProviderModule {
   virtual void shutdownQueues() override;
 
   //! Checks if the module has work to do (should check input queues are empty)
-  virtual inline bool hasWork() const { return !left_frame_queue_.empty(); }
+  inline bool hasWork() const { 
+    return !left_frame_queue_.empty() || !relative_distance_queue_.empty();
+  }
 
  protected:
   //! Input data
   ThreadsafeQueue<Frame::UniquePtr> left_frame_queue_;
+  ThreadsafeQueue<RelativeDistanceData> relative_distance_queue_;
+  DataProviderInterface* data_provider_;
 
   //! Used to handle when we're waiting for IMU data in sequential mode
   Frame::UniquePtr cached_left_frame_;

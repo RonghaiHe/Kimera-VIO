@@ -49,6 +49,12 @@ VisionImuFrontend::~VisionImuFrontend() {
 
 FrontendOutputPacketBase::UniquePtr VisionImuFrontend::spinOnce(
     FrontendInputPacketBase::UniquePtr&& input) {
+  if (input && input->relative_distance.has_value()) {
+    addRelativeDistanceMeasurement(
+        input->relative_distance.value(),
+        input->timestamp);
+  }
+
   const FrontendState& frontend_state = frontend_state_;
   switch (frontend_state) {
     case FrontendState::Bootstrap:
@@ -60,6 +66,58 @@ FrontendOutputPacketBase::UniquePtr VisionImuFrontend::spinOnce(
     default:
       LOG(FATAL) << "Unrecognized Frontend state.";
       break;
+  }
+}
+
+void VisionImuFrontend::addRelativeDistanceMeasurement(
+    double distance, 
+    Timestamp timestamp) {
+  // check数据有效性
+  if (distance < 0.0 || distance > 100.0) { // range
+    LOG(WARNING) << "Invalid relative distance: " << distance 
+                 << " at timestamp: " << timestamp;
+    return;
+  }
+
+  // check时间戳对齐（假设当前帧时间戳为input->timestamp）
+  if (last_keyframe_timestamp_ > 0) {
+    constexpr Timestamp kMaxTimeDiff = 100'000'000; // 100ms
+    const Timestamp time_diff = std::abs(timestamp - last_keyframe_timestamp_);
+    if (time_diff > kMaxTimeDiff) {
+      LOG(WARNING) << "Large timestamp mismatch: " << time_diff 
+                   << " ns for relative distance";
+      return;
+    }
+  }
+
+  relative_distance_buffer_.push(distance);
+}
+
+// nominalSpin
+FrontendOutputPacketBase::UniquePtr VisionImuFrontend::nominalSpin(
+    FrontendInputPacketBase::UniquePtr&& input) {
+
+  // 从队列获取最近的相对距离数据
+  if (!relative_distance_buffer_.empty()) {
+    const double distance = relative_distance_buffer_.pop();
+    
+    if (distance > 0.0) {
+      constexpr double kRelDistanceNoise = 0.1; 
+      const auto noise_model = 
+          gtsam::noiseModel::Diagonal::Sigmas(gtsam::Vector1(kRelDistanceNoise));
+      
+      const gtsam::Symbol current_pose_key('x', frame_count_);
+      const gtsam::Symbol prev_pose_key('x', frame_count_ - 1);
+      
+      graph_.emplace_shared<gtsam::BetweenFactor<gtsam::Pose3>>(
+          prev_pose_key,
+          current_pose_key,
+          gtsam::Pose3(gtsam::Rot3(), gtsam::Point3(0, 0, distance)),
+          noise_model
+      );
+      
+      VLOG(5) << "Added relative distance factor: " << distance << " meters";
+    }
   }
 }
 

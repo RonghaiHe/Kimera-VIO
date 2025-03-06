@@ -13,6 +13,8 @@
  */
 
 #include "kimera-vio/frontend/VisionImuFrontendModule.h"
+#include "kimera-vio/frontend/VisionImuFrontend-definitions.h" 
+
 
 namespace VIO {
 
@@ -27,8 +29,24 @@ VisionImuFrontendModule::VisionImuFrontendModule(
 
 FrontendOutputPacketBase::UniquePtr VisionImuFrontendModule::spinOnce(
     FrontendInputPacketBase::UniquePtr input) {
-  CHECK(input);
+  if (!input) return nullptr;
+
+  
+  handleRelativeDistance(*input); 
+
+  
   return vio_frontend_->spinOnce(std::move(input));
+}
+
+void VisionImuFrontendModule::handleRelativeDistance(
+    const FrontendInputPacketBase& input_packet) {
+  
+  if (input_packet.relative_distance.has_value()) {
+    
+    processRelativeDistance(
+        input_packet.relative_distance.value(),
+        input_packet.timestamp);
+  }
 }
 
 }  // namespace VIO
