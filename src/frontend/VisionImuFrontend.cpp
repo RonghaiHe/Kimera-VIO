@@ -340,16 +340,39 @@ void VisionImuFrontend::computeConditionNumber(StereoFrame& lkf_stereo_frame,
   // tracker_->matches_lkf_cur_
   Eigen::Matrix<double, 6, 6> hessian = Eigen::Matrix<double, 6, 6>::Zero();
   Eigen::Matrix<double, 1, 6> jacobian;
-  // LOG(INFO) << "Size of keypoints of lkf: " << lkf_stereo_frame.keypoints_3d_.size();
-  // LOG(INFO) << "Size of keypoints of cur: " << cur_stereo_frame.keypoints_3d_.size();
+  Eigen::Matrix<double, 6, 6> hessian_euler =
+      Eigen::Matrix<double, 6, 6>::Zero();
+  Eigen::Matrix<double, 1, 6> jacobian_euler;
+  Eigen::Matrix<double, 3, 3> hessian_euler3 =
+      Eigen::Matrix<double, 3, 3>::Zero();
+  Eigen::Matrix<double, 1, 3> jacobian_euler3;
+  Eigen::Matrix<double, 3, 3> jacobianEuler;
+
+  Eigen::Matrix<double, 1, 3> euler =
+      lkf_T_cur.rotation().matrix().eulerAngles(1, 0, 2);
+  double sx, sy, sz, cx, cy, cz;
+  sx = std::sin(euler(0));
+  sy = std::sin(euler(1));
+  sz = std::sin(euler(2));
+  cx = std::cos(euler(0));
+  cy = std::cos(euler(1));
+  cz = std::cos(euler(2));
+
+  Eigen::Matrix<double, 6, 6> hessian_right =
+      Eigen::Matrix<double, 6, 6>::Zero();
+  Eigen::Matrix<double, 6, 6> hessian36 = Eigen::Matrix<double, 6, 6>::Zero();
+  Eigen::Matrix<double, 6, 6> hessian36_right =
+      Eigen::Matrix<double, 6, 6>::Zero();
+  Eigen::Matrix<double, 1, 6> jacobian_right;
+  Eigen::Matrix<double, 3, 6> jacobian36, jacobian36_right;
+
   for (const auto& [lkf_keypoint_ind, cur_keypoint_ind] :
        cur_stereo_frame.left_frame_.matches_lkf_cur_) {
-    // LOG(INFO) << "Keypoint indices: " << lkf_keypoint_ind << " " << cur_keypoint_ind;
-    // Get the corresponding keypoint
     const Landmark& lkf_keypoint =
         lkf_stereo_frame.keypoints_3d_.at(lkf_keypoint_ind);
     const Landmark& cur_keypoint =
         cur_stereo_frame.keypoints_3d_.at(cur_keypoint_ind);
+
     Eigen::Matrix<double, 1, 3> residual_T =
         (lkf_T_cur.transformFrom(lkf_keypoint) - cur_keypoint).transpose();
     // LOG(INFO) << "Residual: " << residual_T;
@@ -362,9 +385,62 @@ void VisionImuFrontend::computeConditionNumber(StereoFrame& lkf_stereo_frame,
     // LOG(INFO) << "Jacobian: " << jacobian;
     // Compute the Hessian
     hessian += jacobian.transpose() * jacobian;
+
+    jacobianEuler(0, 0) = sy * cx * sz * lkf_keypoint.x() +
+                          cz * sy * cx * lkf_keypoint.y() -
+                          sx * sy * lkf_keypoint.z();
+    jacobianEuler(1, 0) = -sx * sz * lkf_keypoint.x() +
+                          -sx * cz * lkf_keypoint.y() - cx * lkf_keypoint.z();
+    jacobianEuler(2, 0) = cy * cx * sz * lkf_keypoint.x() +
+                          cy * cz * cx * lkf_keypoint.y() -
+                          cy * sx * lkf_keypoint.z();
+
+    jacobianEuler(0, 1) = (-sy * cz + cy * sx * sz) * lkf_keypoint.x() +
+                          (cz * cy * sx + sy * sz) * lkf_keypoint.y() +
+                          cx * cy * lkf_keypoint.z();
+    jacobianEuler(1, 1) = 0;
+    jacobianEuler(2, 1) = -(sy * sx * sz) * lkf_keypoint.x() +
+                          (-sy * cz * cx + cy * sz) * lkf_keypoint.y() -
+                          sy * cx * lkf_keypoint.z();
+    jacobianEuler(0, 2) = (-cy * sz + sy * sx * cz) * lkf_keypoint.x() +
+                          (-sz * sy * sx - cy * cz) * lkf_keypoint.y();
+    jacobianEuler(1, 2) =
+        cx * cz * lkf_keypoint.x() - cx * sz * lkf_keypoint.y();
+    jacobianEuler(2, 2) = (cy * sx * cz + sz * sy) * lkf_keypoint.x() +
+                          (-cy * sz * sx + sy * cz) * lkf_keypoint.y();
+
+    jacobian_euler.block<1, 3>(0, 0) = residual_T;
+    jacobian_euler.block<1, 3>(0, 3) = residual_T * jacobianEuler;
+    hessian_euler += jacobian_euler.transpose() * jacobian_euler;
+
+    jacobian_euler3.block<1, 2>(0, 0) = residual_T.block<1, 2>(0, 0);
+    jacobian_euler3(0, 2) = residual_T * jacobianEuler.block<3, 1>(0, 2);
+    hessian_euler3 += jacobian_euler3.transpose() * jacobian_euler3;
+
+    jacobian_right.block<1, 3>(0, 0) = residual_T;
+    jacobian_right.block<1, 3>(0, 3) = -residual_T *
+                                       lkf_T_cur.rotation().matrix() *
+                                       gtsam::skewSymmetric(lkf_keypoint);
+    // LOG(INFO) << "Jacobian: " << jacobian;
+    // Compute the Hessian
+    hessian_right += jacobian_right.transpose() * jacobian_right;
+
+    // Compute the 3x6 Hessian
+    jacobian36.block<3, 3>(0, 0) = Eigen::Matrix3d::Identity();
+    jacobian36.block<3, 3>(0, 3) = -gtsam::skewSymmetric(transform_keypoint);
+
+    jacobian36_right.block<3, 3>(0, 0) = Eigen::Matrix3d::Identity();
+    jacobian36_right.block<3, 3>(0, 3) =
+        -lkf_T_cur.rotation().matrix() * gtsam::skewSymmetric(lkf_keypoint);
+
+    hessian36 += jacobian36.transpose() * jacobian36;
+    hessian36_right += jacobian36_right.transpose() * jacobian36_right;
   }
   hessian *= 4;
-  // LOG(INFO) << "Hessian: " << hessian; 
+  hessian_right *= 4;
+  hessian_euler *= 4;
+  hessian_euler3 *= 4;
+  // LOG(INFO) << "Hessian: " << hessian;
   // Compute eigenvalues safely
   Eigen::SelfAdjointEigenSolver<Eigen::Matrix<double, 6, 6>> eigensolver(
       hessian);
@@ -386,13 +462,163 @@ void VisionImuFrontend::computeConditionNumber(StereoFrame& lkf_stereo_frame,
   double log_cond_number = std::log(condition_number);
   // LOG(INFO) << "Condition number calculation for current KF: " <<
   // curr_kf_id_;
-  
-  // LOG(INFO) << "Eigenvalues: " << eigenvalues.transpose();
-  LOG(INFO) << "Maximum eigenvalue: " << eigenvalues.maxCoeff();
-  LOG(INFO) << "Minimum eigenvalue: " << eigenvalues.minCoeff();
+
+  LOG(INFO) << log_cond_number << '\t' << eigenvalues.transpose();
+  // LOG(INFO) << "Maximum eigenvalue: " << eigenvalues.maxCoeff()
+  //           << "Minimum eigenvalue: " << eigenvalues.minCoeff();
   // LOG(INFO) << "Condition number: " << condition_number;
-  LOG(INFO) << "Logarithm of condition number (base e): " << log_cond_number;
-  LOG(INFO) << "Size of landmarks: " << cur_stereo_frame.left_frame_.matches_lkf_cur_.size();
+  // LOG(INFO) << log_cond_number << "Logarithm of condition number (base e): ";
+
+  // ------------------- Right disturbance -------------------
+  // Compute eigenvalues safely
+  Eigen::SelfAdjointEigenSolver<Eigen::Matrix<double, 6, 6>> eigensolver_right(
+      hessian_right);
+  CHECK(eigensolver_right.info() == Eigen::Success)
+      << "Eigenvalue computation failed";
+  // Obtain eigenvalue
+  Eigen::Matrix<double, 6, 1> eigenvalues_right =
+      eigensolver_right.eigenvalues();
+
+  // Condition number
+  double min_coeff_right = eigenvalues_right.minCoeff();
+  double condition_number_right;
+  if (min_coeff_right != 0) {
+    condition_number_right = eigenvalues_right.maxCoeff() / min_coeff_right;
+  } else {
+    condition_number_right = std::numeric_limits<double>::infinity();
+  }
+
+  // take logarithm
+  double log_cond_number_right = std::log(condition_number_right);
+  // LOG(INFO) << "Condition number calculation for current KF: " <<
+  // curr_kf_id_;
+
+  // LOG(INFO) << "Hessian right: " << hessian_right;
+  // LOG(INFO) << "Eigenvalues: " << eigenvalues.transpose();
+  // LOG(INFO) << "Right: Maximum eigenvalue: " << eigenvalues_right.maxCoeff()
+  //           << "Minimum eigenvalue: " << eigenvalues_right.minCoeff();
+  // // LOG(INFO) << "Condition number: " << condition_number;
+  // LOG(INFO) << log_cond_number_right
+  //           << "Right: Logarithm of condition number (base e): ";
+
+  // Compute eigenvalues safely
+  Eigen::SelfAdjointEigenSolver<Eigen::Matrix<double, 6, 6>> eigensolver36(
+      hessian36);
+  CHECK(eigensolver36.info() == Eigen::Success)
+      << "Eigenvalue computation failed";
+  // Obtain eigenvalue
+  Eigen::Matrix<double, 6, 1> eigenvalues36 = eigensolver36.eigenvalues();
+
+  // Condition number
+  double min_coeff36 = eigenvalues36.minCoeff();
+  double condition_number36;
+  if (min_coeff36 != 0) {
+    condition_number36 = eigenvalues36.maxCoeff() / min_coeff36;
+  } else {
+    condition_number36 = std::numeric_limits<double>::infinity();
+  }
+
+  // take logarithm
+  double log_cond_number36 = std::log(condition_number36);
+  // LOG(INFO) << "Condition number calculation for current KF: " <<
+  // curr_kf_id_;
+
+  // LOG(INFO) << "Eigenvalues: " << eigenvalues36.transpose();
+  // LOG(INFO) << "Maximum eigenvalue: " << eigenvalues36.maxCoeff()
+  //           << "Minimum eigenvalue: " << eigenvalues36.minCoeff();
+  // LOG(INFO) << "Condition number: " << condition_number;
+  // LOG(INFO) << log_cond_number36 << "Logarithm of condition number (base e):
+  // ";
+
+  // ------------------- Right disturbance -------------------
+  // Compute eigenvalues safely
+  Eigen::SelfAdjointEigenSolver<Eigen::Matrix<double, 6, 6>>
+      eigensolver36_right(hessian36_right);
+  CHECK(eigensolver36_right.info() == Eigen::Success)
+      << "Eigenvalue computation failed";
+  // Obtain eigenvalue
+  Eigen::Matrix<double, 6, 1> eigenvalues36_right =
+      eigensolver36_right.eigenvalues();
+
+  // Condition number
+  double min_coeff36_right = eigenvalues36_right.minCoeff();
+  double condition_number36_right;
+  if (min_coeff36_right != 0) {
+    condition_number36_right =
+        eigenvalues36_right.maxCoeff() / min_coeff36_right;
+  } else {
+    condition_number36_right = std::numeric_limits<double>::infinity();
+  }
+
+  // take logarithm
+  double log_cond_number36_right = std::log(condition_number36_right);
+  // LOG(INFO) << "Condition number calculation for current KF: " <<
+  // curr_kf_id_;
+
+  // LOG(INFO) << "Eigenvalues: " << eigenvalues.transpose();
+  // LOG(INFO) << "Right: Maximum eigenvalue: " <<
+  // eigenvalues36_right.maxCoeff()
+  //           << "Minimum eigenvalue: " << eigenvalues36_right.minCoeff();
+  // // LOG(INFO) << "Condition number: " << condition_number;
+  // LOG(INFO) << log_cond_number36_right
+  //           << "Right: Logarithm of condition number (base e): ";
+
+  // LOG(INFO) << "Size of landmarks: "
+  //           << cur_stereo_frame.left_frame_.matches_lkf_cur_.size();
+
+  // Compute eigenvalues safely
+  Eigen::SelfAdjointEigenSolver<Eigen::Matrix<double, 6, 6>> eigensolver_euler(
+      hessian_euler);
+  CHECK(eigensolver_euler.info() == Eigen::Success)
+      << "Eigenvalue computation failed";
+  // Obtain eigenvalue
+  Eigen::Matrix<double, 6, 1> eigenvalues_euler =
+      eigensolver_euler.eigenvalues();
+
+  // Condition number
+  double min_coeff_euler = eigenvalues_euler.minCoeff();
+  double condition_number_euler;
+  if (min_coeff_euler != 0) {
+    condition_number_euler = eigenvalues_euler.maxCoeff() / min_coeff_euler;
+  } else {
+    condition_number_euler = std::numeric_limits<double>::infinity();
+  }
+
+  // take logarithm
+  double log_cond_number_euler = std::log(condition_number_euler);
+  LOG(INFO) << log_cond_number_euler << '\t' << eigenvalues_euler.transpose();
+  // LOG(INFO) << "Condition number calculation for current KF: " <<
+  // curr_kf_id_;
+
+  // LOG(INFO) << "Eigenvalues: " << eigenvalues36.transpose();
+  // LOG(INFO) << "Maximum eigenvalue: " << eigenvalues36.maxCoeff()
+  //           << "Minimum eigenvalue: " << eigenvalues36.minCoeff();
+  // LOG(INFO) << "Condition number: " << condition_number;
+  // LOG(INFO) << log_cond_number36 << "Logarithm of condition number (base e):
+  // ";
+
+  // ------------------- Right disturbance -------------------
+  // Compute eigenvalues safely
+  Eigen::SelfAdjointEigenSolver<Eigen::Matrix<double, 3, 3>> eigensolver_euler3(
+      hessian_euler3);
+  CHECK(eigensolver_euler3.info() == Eigen::Success)
+      << "Eigenvalue computation failed";
+  // Obtain eigenvalue
+  Eigen::Matrix<double, 3, 1> eigenvalues_euler3 =
+      eigensolver_euler3.eigenvalues();
+
+  // Condition number
+  double min_coeff_euler3 = eigenvalues_euler3.minCoeff();
+  double condition_number_euler3;
+  if (min_coeff_euler3 != 0) {
+    condition_number_euler3 = eigenvalues_euler3.maxCoeff() / min_coeff_euler3;
+  } else {
+    condition_number_euler3 = std::numeric_limits<double>::infinity();
+  }
+
+  // take logarithm
+  double log_cond_number_euler3 = std::log(condition_number_euler3);
+  LOG(INFO) << log_cond_number_euler3 << '\t' << eigenvalues_euler3.transpose();
 }
 
 }  // namespace VIO
