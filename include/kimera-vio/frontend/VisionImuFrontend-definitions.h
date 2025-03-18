@@ -35,4 +35,19 @@ struct ExternalOdomMeasurement {
   gtsam::NavState odom_data_;
 };
 
+struct RelativeDistanceMeasurement {
+  EIGEN_MAKE_ALIGNED_OPERATOR_NEW
+
+  RelativeDistanceMeasurement() = default;
+
+  RelativeDistanceMeasurement(const Timestamp& timestamp,
+                             const double& distance,
+                             const double& confidence = 1.0)
+      : timestamp_(timestamp), distance_(distance), confidence_(confidence) {}
+
+  Timestamp timestamp_;
+  double distance_;      //relative distance value
+  double confidence_;
+};
+
 }  // namespace VIO
