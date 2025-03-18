@@ -26,11 +26,13 @@ StereoImuSyncPacket::StereoImuSyncPacket(const StereoFrame& stereo_frame,
                                          const ImuStampS& imu_stamps,
                                          const ImuAccGyrS& imu_accgyrs,
                                          OptOdom external_odometry,
-                                         const ReinitPacket& reinit_packet)
+                                         const ReinitPacket& reinit_packet,
+                                         std::optional<RelativeDistanceMeasurement> relative_distance)
     : FrontendInputPacketBase(stereo_frame.timestamp_,
                               imu_stamps,
                               imu_accgyrs,
-                              external_odometry),
+                              external_odometry,
+                              relative_distance),
       stereo_frame_(stereo_frame),
       reinit_packet_(reinit_packet) {
   // The timestamp of the last IMU measurement must correspond to the timestamp
