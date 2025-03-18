@@ -33,7 +33,8 @@ class MonoImuSyncPacket : public FrontendInputPacketBase {
       Frame::UniquePtr frame,
       const ImuStampS& imu_stamps,
       const ImuAccGyrS& imu_accgyrs,
-      std::optional<gtsam::NavState> external_odometry = std::nullopt);
+      std::optional<gtsam::NavState> external_odometry = std::nullopt,
+      std::optional<RelativeDistanceMeasurement> relative_distance = std::nullopt);
 
   virtual ~MonoImuSyncPacket() = default;
 
