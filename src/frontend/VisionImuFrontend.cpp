@@ -321,10 +321,10 @@ std::optional<double> VisionImuFrontend::getRelativeDistance(
     return std::nullopt;
   }
 
-  // 计算与上一次测量的差值
+  // Calculate the difference from the previous measurement
   double distance_diff = input->relative_distance_->distance_ - *last_relative_distance_;
   
-  // 更新缓存的距离
+  // Update the cached distance
   last_relative_distance_ = input->relative_distance_->distance_;
   
   return distance_diff;
