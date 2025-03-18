@@ -301,4 +301,33 @@ VisionImuFrontend::getExternalOdometryWorldVelocity(
   return (*input->world_NavState_ext_odom_).velocity();
 }
 
+void VisionImuFrontend::cacheRelativeDistance(FrontendInputPacketBase* input) {
+  if (input->relative_distance_) {
+    VLOG(2) << "Caching relative distance measurement";
+    last_relative_distance_ = input->relative_distance_->distance_;
+  }
+}
+
+std::optional<double> VisionImuFrontend::getRelativeDistance(
+    FrontendInputPacketBase* input) {
+  CHECK(input);
+  if (!input->relative_distance_) {
+    LOG(WARNING) << "Input packet did not contain valid relative distance measurement";
+    return std::nullopt;
+  }
+
+  if (!last_relative_distance_) {
+    last_relative_distance_ = input->relative_distance_->distance_;
+    return std::nullopt;
+  }
+
+  // 计算与上一次测量的差值
+  double distance_diff = input->relative_distance_->distance_ - *last_relative_distance_;
+  
+  // 更新缓存的距离
+  last_relative_distance_ = input->relative_distance_->distance_;
+  
+  return distance_diff;
+}
+
 }  // namespace VIO
