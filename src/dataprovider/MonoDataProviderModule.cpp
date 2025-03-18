@@ -103,19 +103,39 @@ MonoImuSyncPacket::UniquePtr MonoDataProviderModule::getMonoImuSyncPacket(
     }
   }
 
+  // 获取相对距离数据
+  RelativeDistanceMeasurement relative_distance;
+  bool relative_distance_valid = getRelativeDistanceMeasurements(
+      &timestamp, &relative_distance);
+
   if (cache_timestamp) {
     timestamp_last_frame_ = timestamp;
   }
 
-  if (odometry_valid) {
-    // return synchronized left frame, IMU data and external odometry
+  if (odometry_valid && relative_distance_valid) {
+    // 返回同步的左框架、IMU数据、外部里程计和相对距离
+    return std::make_unique<MonoImuSyncPacket>(std::move(left_frame_payload),
+                                               imu_meas.timestamps_,
+                                               imu_meas.acc_gyr_,
+                                               external_odometry,
+                                               relative_distance);
+  } else if (odometry_valid) {
+    // 返回同步的左框架、IMU数据和外部里程计
     return std::make_unique<MonoImuSyncPacket>(std::move(left_frame_payload),
                                                imu_meas.timestamps_,
                                                imu_meas.acc_gyr_,
                                                external_odometry);
+  } else if (relative_distance_valid) {
+    // 返回同步的左框架、IMU数据和相对距离
+    return std::make_unique<MonoImuSyncPacket>(
+        std::move(left_frame_payload), 
+        imu_meas.timestamps_, 
+        imu_meas.acc_gyr_,
+        std::nullopt,  // 无外部里程计
+        relative_distance);
   }
 
-  //! Send synchronized left frame and IMU data.
+  //! 发送同步的左框架和IMU数据。
   return std::make_unique<MonoImuSyncPacket>(
       std::move(left_frame_payload), imu_meas.timestamps_, imu_meas.acc_gyr_);
 }
