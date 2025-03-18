@@ -41,7 +41,8 @@ class FrontendOutputPacketBase : public PipelinePayload {
       const DebugTrackerInfo& debug_tracker_info,
       std::optional<gtsam::Pose3> body_lkf_OdomPose_body_kf = std::nullopt,
       std::optional<gtsam::Velocity3> body_kf_world_OdomVel_body_kf =
-          std::nullopt)
+          std::nullopt,
+      std::optional<double> relative_distance = std::nullopt)
       : PipelinePayload(timestamp),
         is_keyframe_(is_keyframe),
         frontend_type_(frontend_type),
@@ -49,7 +50,8 @@ class FrontendOutputPacketBase : public PipelinePayload {
         imu_acc_gyrs_(imu_acc_gyrs),
         debug_tracker_info_(debug_tracker_info),
         body_lkf_OdomPose_body_kf_(body_lkf_OdomPose_body_kf),
-        body_kf_world_OdomVel_body_kf_(body_kf_world_OdomVel_body_kf) {}
+        body_kf_world_OdomVel_body_kf_(body_kf_world_OdomVel_body_kf),
+        relative_distance_(relative_distance) {}
 
   virtual ~FrontendOutputPacketBase() = default;
 
@@ -65,20 +67,32 @@ class FrontendOutputPacketBase : public PipelinePayload {
     return nullptr;
   }
 
- public:
-  const bool is_keyframe_;
-  const FrontendType frontend_type_;
-  const ImuFrontend::PimPtr pim_;
-  const ImuAccGyrS imu_acc_gyrs_;
-  const DebugTrackerInfo debug_tracker_info_;
-  // between pose of the body from the current to the last keyframe as estimated
-  // by an external odometry source
-  std::optional<gtsam::Pose3> body_lkf_OdomPose_body_kf_;
-  // velocity of the current body frame w.r.t. world frame in the current body
-  // frame from odometry
-  std::optional<gtsam::Velocity3> body_kf_world_OdomVel_body_kf_;
-
+  // Getters
+  inline bool isKeyframe() const { return is_keyframe_; }
+  inline FrontendType getFrontendType() const { return frontend_type_; }
+  inline ImuFrontend::PimPtr getPim() const { return pim_; }
+  inline ImuAccGyrS getImuAccGyrs() const { return imu_acc_gyrs_; }
   inline DebugTrackerInfo getTrackerInfo() const { return debug_tracker_info_; }
+  inline std::optional<gtsam::Pose3> getBodyLkfOdomPoseBodyKf() const {
+    return body_lkf_OdomPose_body_kf_;
+  }
+  inline std::optional<gtsam::Velocity3> getBodyKfWorldOdomVelBodyKf() const {
+    return body_kf_world_OdomVel_body_kf_;
+  }
+  inline std::optional<double> getRelativeDistance() const {
+    return relative_distance_;
+  }
+
+ protected:
+  // Actual payload
+  bool is_keyframe_;
+  FrontendType frontend_type_;
+  ImuFrontend::PimPtr pim_;
+  ImuAccGyrS imu_acc_gyrs_;
+  DebugTrackerInfo debug_tracker_info_;
+  std::optional<gtsam::Pose3> body_lkf_OdomPose_body_kf_;
+  std::optional<gtsam::Velocity3> body_kf_world_OdomVel_body_kf_;
+  std::optional<double> relative_distance_;
 };
 
 }  // namespace VIO
