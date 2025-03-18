@@ -178,6 +178,10 @@ class VisionImuFrontend {
   std::optional<gtsam::Velocity3> getExternalOdometryWorldVelocity(
       FrontendInputPacketBase* input) const;
 
+  // 处理相对距离数据
+  void cacheRelativeDistance(FrontendInputPacketBase* input);
+  std::optional<double> getRelativeDistance(FrontendInputPacketBase* input);
+
  protected:
   //! Parameters
   FrontendParams frontend_params_;
@@ -218,6 +222,9 @@ class VisionImuFrontend {
   std::optional<OdometryParams> odom_params_;
   // world_Pose_body for the last keyframe
   std::optional<gtsam::Pose3> world_OdomPose_body_lkf_;
+
+  // 缓存的相对距离数据
+  std::optional<double> last_relative_distance_;
 };
 
 }  // namespace VIO
