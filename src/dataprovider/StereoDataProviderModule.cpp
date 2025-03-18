@@ -70,7 +70,7 @@ StereoDataProviderModule::getInputPacket() {
         mono_imu_sync_packet->imu_stamps_,
         mono_imu_sync_packet->imu_accgyrs_,
         mono_imu_sync_packet->world_NavState_ext_odom_,
-        ReinitPacket(),  // 默认的重初始化包
+        ReinitPacket(),  // Default reinitialization packet
         mono_imu_sync_packet->relative_distance_));
   }
 
