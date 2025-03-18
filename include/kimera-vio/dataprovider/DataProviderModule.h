@@ -94,6 +94,52 @@ class DataProviderModule : public MISOPipelineModule<FrontendInputPacketBase,
         odom.timestamp_ + external_odometry_time_shift_ns_, odom.odom_data_);
   }
 
+  // Fills relative distance queue with measurements
+  inline void fillRelativeDistanceQueue(const RelativeDistanceMeasurement& distance) {
+    relative_distance_queue_.push(distance);
+  }
+
+  /**
+   * @brief Get latest relative distance measurement
+   *
+   * @param timestamp_of_current_frame Timestamp of current frame
+   * @param distance_measurement Output relative distance measurement
+   * @return true if a valid measurement was found, false otherwise
+   */
+  inline bool getRelativeDistanceMeasurements(
+      Timestamp* timestamp_of_current_frame,
+      RelativeDistanceMeasurement* distance_measurement) {
+    CHECK_NOTNULL(timestamp_of_current_frame);
+    CHECK_NOTNULL(distance_measurement);
+    if (relative_distance_queue_.empty()) {
+      VLOG(5) << "No relative distance measurements available.";
+      return false;
+    }
+    
+    // 获取当前时间戳或之前最近的距离测量
+    bool found_distance_data = false;
+    RelativeDistanceMeasurement distance_data;
+    while (!relative_distance_queue_.empty()) {
+      // 获取队列前端的测量值
+      distance_data = relative_distance_queue_.front();
+      
+      // 如果测量时间戳晚于当前帧时间戳，则跳出循环
+      if (distance_data.timestamp_ > *timestamp_of_current_frame) {
+        break;
+      }
+      
+      // 弹出队列中时间戳早于或等于当前帧的测量
+      relative_distance_queue_.pop();
+      found_distance_data = true;
+    }
+    
+    if (found_distance_data) {
+      *distance_measurement = distance_data;
+    }
+    
+    return found_distance_data;
+  }
+
   /**
    * @brief Set flag for the DataProvider to perform a coarse timestamp
    * correction
@@ -181,6 +227,11 @@ class DataProviderModule : public MISOPipelineModule<FrontendInputPacketBase,
   PipelineOutputCallback vio_pipeline_callback_;
   //! External odometry source
   ThreadsafeOdometryBuffer::UniquePtr external_odometry_buffer_;
+  //! IMU buffer is used by BOTH data_provider and Vio pipeline
+  //! and we need to keep a non-const reference to it.
+  utils::ThreadsafeImuBuffer::Queue& imu_buffer_;
+  //! Queue for relative distance measurements
+  BufferQueue<RelativeDistanceMeasurement> relative_distance_queue_;
 };  // namespace VIO
 
 }  // namespace VIO
