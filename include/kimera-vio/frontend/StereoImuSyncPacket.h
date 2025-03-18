@@ -89,7 +89,8 @@ class StereoImuSyncPacket : public FrontendInputPacketBase {
       const ImuStampS& imu_stamps,
       const ImuAccGyrS& imu_accgyr,
       std::optional<gtsam::NavState> external_odometry = std::nullopt,
-      const ReinitPacket& reinit_packet = ReinitPacket());
+      const ReinitPacket& reinit_packet = ReinitPacket(),
+      std::optional<RelativeDistanceMeasurement> relative_distance = std::nullopt);
   ~StereoImuSyncPacket() = default;
 
   // Careful, returning references to members can lead to dangling refs.
