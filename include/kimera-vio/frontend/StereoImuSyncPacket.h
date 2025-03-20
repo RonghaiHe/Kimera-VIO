@@ -99,12 +99,16 @@ class StereoImuSyncPacket : public FrontendInputPacketBase {
   inline const ImuAccGyrS& getImuAccGyrs() const { return imu_accgyrs_; }
   inline const ReinitPacket& getReinitPacket() const { return reinit_packet_; }
   inline bool getReinitFlag() const { return reinit_packet_.getReinitFlag(); }
+  inline const std::optional<RelativeDistanceMeasurement>& getRelativeDistance() const { return relative_distance_; }
 
   void print() const;
 
  private:
   const StereoFrame stereo_frame_;
   const ReinitPacket reinit_packet_;
+  const ImuStampS imu_stamps_;
+  const ImuAccGyrS imu_accgyrs_;
+  const std::optional<RelativeDistanceMeasurement> relative_distance_;
 };
 
 }  // namespace VIO
