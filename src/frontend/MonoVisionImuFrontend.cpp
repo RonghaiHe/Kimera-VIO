@@ -516,4 +516,37 @@ void MonoVisionImuFrontend::printStatusMonoMeasurements(
   LOG(INFO) << std::endl;
 }
 
+void MonoVisionImuFrontend::processRelativeDistance(
+    const RelativeDistanceMeasurement& relative_distance) {
+  // 检查数据有效性
+  if (relative_distance.timestamp_ <= 0) {
+    LOG(WARNING) << "Invalid relative distance timestamp: " << relative_distance.timestamp_;
+    return;
+  }
+
+  if (relative_distance.distance_ < 0.0) {
+    LOG(WARNING) << "Invalid negative relative distance: " << relative_distance.distance_;
+    return;
+  }
+
+  // 检查时间戳顺序
+  if (last_relative_distance_timestamp_ > 0 && 
+      relative_distance.timestamp_ < last_relative_distance_timestamp_) {
+    LOG(WARNING) << "Out-of-order relative distance measurement. "
+                 << "Current: " << relative_distance.timestamp_
+                 << ", Last: " << last_relative_distance_timestamp_;
+    return;
+  }
+
+  // 计算相对距离变化
+  if (last_relative_distance_timestamp_ > 0) {
+    double delta_distance = relative_distance.distance_ - last_relative_distance_;
+    LOG(INFO) << "Relative distance change: " << delta_distance;
+  }
+
+  // 更新状态
+  last_relative_distance_ = relative_distance.distance_;
+  last_relative_distance_timestamp_ = relative_distance.timestamp_;
+}
+
 }  // namespace VIO
