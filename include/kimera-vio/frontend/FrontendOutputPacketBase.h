@@ -53,6 +53,11 @@ class FrontendOutputPacketBase : public PipelinePayload {
         body_kf_world_OdomVel_body_kf_(body_kf_world_OdomVel_body_kf),
         relative_distance_(relative_distance) {}
 
+  FrontendOutputPacketBase(const FrontendOutputPacketBase&) = default;
+  FrontendOutputPacketBase& operator=(const FrontendOutputPacketBase&) = default;
+  FrontendOutputPacketBase(FrontendOutputPacketBase&&) = default;
+  FrontendOutputPacketBase& operator=(FrontendOutputPacketBase&&) = default;
+
   virtual ~FrontendOutputPacketBase() = default;
 
   virtual const Frame* getTrackingFrame() const { return nullptr; }
