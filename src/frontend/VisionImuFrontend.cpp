@@ -35,7 +35,11 @@ VisionImuFrontend::VisionImuFrontend(const FrontendParams& frontend_params,
       tracker_status_summary_(),
       display_queue_(display_queue),
       logger_(nullptr),
-      odom_params_(odom_params) {
+      odom_params_(odom_params),
+      world_OdomPose_body_lkf_(std::nullopt),
+      last_relative_distance_(std::nullopt),
+      last_relative_distance_node_id_(-1),
+      last_relative_distance_timestamp_(0) {
   imu_frontend_ = std::make_unique<ImuFrontend>(imu_params, imu_initial_bias);
   if (log_output) {
     logger_ = std::make_unique<FrontendLogger>();
@@ -305,6 +309,8 @@ void VisionImuFrontend::cacheRelativeDistance(FrontendInputPacketBase* input) {
   if (input->relative_distance_) {
     VLOG(2) << "Caching relative distance measurement";
     last_relative_distance_ = input->relative_distance_->distance_;
+    last_relative_distance_node_id_ = input->relative_distance_->node_id_;
+    last_relative_distance_timestamp_ = input->relative_distance_->timestamp_;
   }
 }
 
@@ -316,8 +322,27 @@ std::optional<double> VisionImuFrontend::getRelativeDistance(
     return std::nullopt;
   }
 
+  // 检查时间戳顺序
+  if (last_relative_distance_timestamp_ > 0 && 
+      input->relative_distance_->timestamp_ < last_relative_distance_timestamp_) {
+    LOG(WARNING) << "Out-of-order relative distance measurement. "
+                 << "Current: " << input->relative_distance_->timestamp_
+                 << ", Last: " << last_relative_distance_timestamp_;
+    return std::nullopt;
+  }
+
+  // 检查是否是同一个节点
+  if (last_relative_distance_node_id_ > 0 && 
+      input->relative_distance_->node_id_ != last_relative_distance_node_id_) {
+    LOG(INFO) << "Received distance from a different node. "
+               << "Current: " << input->relative_distance_->node_id_
+               << ", Last: " << last_relative_distance_node_id_;
+  }
+
   if (!last_relative_distance_) {
     last_relative_distance_ = input->relative_distance_->distance_;
+    last_relative_distance_node_id_ = input->relative_distance_->node_id_;
+    last_relative_distance_timestamp_ = input->relative_distance_->timestamp_;
     return std::nullopt;
   }
 
@@ -326,6 +351,8 @@ std::optional<double> VisionImuFrontend::getRelativeDistance(
   
   // Update the cached distance
   last_relative_distance_ = input->relative_distance_->distance_;
+  last_relative_distance_node_id_ = input->relative_distance_->node_id_;
+  last_relative_distance_timestamp_ = input->relative_distance_->timestamp_;
   
   return distance_diff;
 }
