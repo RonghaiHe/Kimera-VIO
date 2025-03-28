@@ -518,18 +518,19 @@ void MonoVisionImuFrontend::printStatusMonoMeasurements(
 
 void MonoVisionImuFrontend::processRelativeDistance(
     const RelativeDistanceMeasurement& relative_distance) {
-  // 检查数据有效性
+  // Check data validity
   if (relative_distance.timestamp_ <= 0) {
     LOG(WARNING) << "Invalid relative distance timestamp: " << relative_distance.timestamp_;
     return;
   }
 
   if (relative_distance.distance_ < 0.0) {
-    LOG(WARNING) << "Invalid negative relative distance: " << relative_distance.distance_;
+    LOG(WARNING) << "Invalid negative relative distance from node " 
+                 << relative_distance.node_id_ << ": " << relative_distance.distance_;
     return;
   }
 
-  // 检查时间戳顺序
+  // Check timestamp order
   if (last_relative_distance_timestamp_ > 0 && 
       relative_distance.timestamp_ < last_relative_distance_timestamp_) {
     LOG(WARNING) << "Out-of-order relative distance measurement. "
@@ -538,15 +539,19 @@ void MonoVisionImuFrontend::processRelativeDistance(
     return;
   }
 
-  // 计算相对距离变化
+  // Calculate relative distance change
   if (last_relative_distance_timestamp_ > 0) {
     double delta_distance = relative_distance.distance_ - last_relative_distance_;
-    LOG(INFO) << "Relative distance change: " << delta_distance;
+    LOG(INFO) << "Relative distance change for node " << relative_distance.node_id_ 
+              << ": " << delta_distance << " meters";
   }
 
-  // 更新状态
+  // Update state
   last_relative_distance_ = relative_distance.distance_;
   last_relative_distance_timestamp_ = relative_distance.timestamp_;
+  
+  // Record node ID
+  last_relative_distance_node_id_ = relative_distance.node_id_;
 }
 
 }  // namespace VIO
