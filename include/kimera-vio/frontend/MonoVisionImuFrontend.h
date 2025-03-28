@@ -53,6 +53,8 @@ class MonoVisionImuFrontend : public VisionImuFrontend {
  private:
   void processFirstFrame(const Frame& firstFrame);
 
+  void processRelativeDistance(const RelativeDistanceMeasurement& relative_distance);
+
   inline FrontendOutputPacketBase::UniquePtr bootstrapSpin(
       FrontendInputPacketBase::UniquePtr&& input) override {
     CHECK(frontend_state_ == FrontendState::Bootstrap);
@@ -104,6 +106,13 @@ class MonoVisionImuFrontend : public VisionImuFrontend {
   FeatureDetector::UniquePtr feature_detector_;
 
   Camera::ConstPtr mono_camera_;
+
+  mutable SpinInputs spin_inputs_;
+  
+  // 相对距离相关变量
+  double last_relative_distance_;
+  int last_relative_distance_node_id_;
+  Timestamp last_relative_distance_timestamp_;
 };
 
 }  // namespace VIO
