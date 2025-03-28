@@ -42,12 +42,17 @@ struct RelativeDistanceMeasurement {
 
   RelativeDistanceMeasurement(const Timestamp& timestamp,
                              const double& distance,
-                             const double& confidence = 1.0)
-      : timestamp_(timestamp), distance_(distance), confidence_(confidence) {}
+                             const double& confidence = 1.0,
+                             const int& node_id = -1)
+      : timestamp_(timestamp), 
+        distance_(distance), 
+        confidence_(confidence),
+        node_id_(node_id) {}
 
   Timestamp timestamp_;
   double distance_;      //relative distance value
   double confidence_;
+  int node_id_;          //ID of the node providing the distance
 };
 
 }  // namespace VIO
