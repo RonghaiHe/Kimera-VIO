@@ -26,19 +26,6 @@
 
 namespace VIO {
 
-struct RelativeDistanceMeasurement {
-  RelativeDistanceMeasurement(const Timestamp& timestamp = 0,
-                            const double& distance = 0.0,
-                            const int& node_id = -1)
-      : timestamp_(timestamp),
-        distance_(distance),
-        node_id_(node_id) {}
-
-  Timestamp timestamp_;
-  double distance_;
-  int node_id_;
-};
-
 class FrontendOutputPacketBase : public PipelinePayload {
  public:
   KIMERA_POINTER_TYPEDEFS(FrontendOutputPacketBase);
