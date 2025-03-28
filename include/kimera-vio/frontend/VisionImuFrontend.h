@@ -225,6 +225,8 @@ class VisionImuFrontend {
 
   // Cached relative distance data
   std::optional<double> last_relative_distance_;
+  int last_relative_distance_node_id_;
+  Timestamp last_relative_distance_timestamp_;
 };
 
 }  // namespace VIO
