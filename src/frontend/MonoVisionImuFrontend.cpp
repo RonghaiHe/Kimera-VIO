@@ -82,7 +82,7 @@ MonoFrontendOutput::UniquePtr MonoVisionImuFrontend::bootstrapSpinMono(
   // Cache external odometry if available
   cacheExternalOdometry(input.get());
   
-  // 缓存相对距离数据
+  // Cache relative distance data
   cacheRelativeDistance(input.get());
 
   // Get IMU measurements
