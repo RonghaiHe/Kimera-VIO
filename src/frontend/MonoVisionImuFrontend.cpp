@@ -35,17 +35,20 @@ MonoVisionImuFrontend::MonoVisionImuFrontend(
     bool log_output,
     std::optional<OdometryParams> odom_params)
     : VisionImuFrontend(frontend_params,
-                        imu_params,
-                        imu_initial_bias,
-                        display_queue,
-                        log_output,
-                        odom_params),
+                       imu_params,
+                       imu_initial_bias,
+                       display_queue,
+                       log_output,
+                       odom_params),
       mono_frame_k_(nullptr),
       mono_frame_km1_(nullptr),
       mono_frame_lkf_(nullptr),
       keyframe_R_ref_frame_(gtsam::Rot3()),
       feature_detector_(nullptr),
-      mono_camera_(camera) {
+      mono_camera_(camera),
+      last_relative_distance_(0.0),
+      last_relative_distance_node_id_(-1),
+      last_relative_distance_timestamp_(0) {
   CHECK(mono_camera_);
 
   tracker_ = std::make_unique<Tracker>(
