@@ -35,17 +35,20 @@ MonoVisionImuFrontend::MonoVisionImuFrontend(
     bool log_output,
     std::optional<OdometryParams> odom_params)
     : VisionImuFrontend(frontend_params,
-                        imu_params,
-                        imu_initial_bias,
-                        display_queue,
-                        log_output,
-                        odom_params),
+                       imu_params,
+                       imu_initial_bias,
+                       display_queue,
+                       log_output,
+                       odom_params),
       mono_frame_k_(nullptr),
       mono_frame_km1_(nullptr),
       mono_frame_lkf_(nullptr),
       keyframe_R_ref_frame_(gtsam::Rot3()),
       feature_detector_(nullptr),
-      mono_camera_(camera) {
+      mono_camera_(camera),
+      last_relative_distance_(0.0),
+      last_relative_distance_node_id_(-1),
+      last_relative_distance_timestamp_(0) {
   CHECK(mono_camera_);
 
   tracker_ = std::make_unique<Tracker>(
@@ -79,23 +82,99 @@ MonoFrontendOutput::UniquePtr MonoVisionImuFrontend::bootstrapSpinMono(
     cacheExternalOdometry(input.get());
   }
 
-  // Create mostly invalid output
-  CHECK(mono_frame_lkf_);
-  CHECK(mono_camera_);
+  // Cache external odometry if available
+  cacheExternalOdometry(input.get());
+  
+  // Cache relative distance data
+  cacheRelativeDistance(input.get());
 
-  if (FLAGS_do_fine_imu_camera_temporal_sync) {
-    return nullptr;  // skip adding a frame to all downstream modules
+  // Get IMU measurements
+  const ImuFrontend::PimPtr& pim = imu_frontend_->preintegrateImuMeasurements(
+      input->getImuStamps(), input->getImuAccGyrs());
+  CHECK(pim);
+  const gtsam::Rot3 body_R_cam = mono_camera_->getBodyPoseCam().rotation();
+  const gtsam::Rot3 cam_R_body = body_R_cam.inverse();
+  gtsam::Rot3 camLrectLkf_R_camLrectK_imu =
+      cam_R_body * pim->deltaRij() * body_R_cam;
+
+  if (VLOG_IS_ON(10)) {
+    body_R_cam.print("body_R_cam");
+    camLrectLkf_R_camLrectK_imu.print("camLrectLkf_R_camLrectK_imu");
   }
 
-  // Create mostly invalid output
-  return std::make_unique<MonoFrontendOutput>(mono_frame_lkf_->isKeyframe_,
-                                              nullptr,
-                                              mono_camera_->getBodyPoseCam(),
-                                              *mono_frame_lkf_,
-                                              nullptr,
-                                              input->getImuAccGyrs(),
-                                              cv::Mat(),
-                                              getTrackerInfo());
+  /////////////////////////////// TRACKING /////////////////////////////////////
+  VLOG(10) << "Starting processFrame...";
+  cv::Mat feature_tracks;
+  StatusMonoMeasurementsPtr status_mono_measurements =
+      processFrame(input->getFrame(), camLrectLkf_R_camLrectK_imu, &feature_tracks);
+  CHECK(!mono_frame_k_);  // We want a nullptr at the end of the processing.
+  VLOG(10) << "Finished processStereoFrame.";
+  //////////////////////////////////////////////////////////////////////////////
+
+  if (VLOG_IS_ON(5))
+    MonoVisionImuFrontend::printStatusMonoMeasurements(
+        *status_mono_measurements);
+
+  if (mono_frame_km1_->isKeyframe_) {
+    CHECK_EQ(mono_frame_lkf_->timestamp_, mono_frame_km1_->timestamp_);
+    CHECK_EQ(mono_frame_lkf_->id_, mono_frame_km1_->id_);
+    CHECK(!mono_frame_k_);
+    CHECK(mono_frame_lkf_->isKeyframe_);
+    VLOG(1) << "Keyframe " << input->getFrame().id_
+            << " with: " << status_mono_measurements->second.size()
+            << " smart measurements";
+
+    ////////////////// DEBUG INFO FOR FRONT-END ////////////////////////////////
+    if (logger_) {
+      logger_->logFrontendStats(mono_frame_lkf_->timestamp_,
+                                getTrackerInfo(),
+                                tracker_status_summary_,
+                                mono_frame_km1_->getNrValidKeypoints());
+      logger_->logFrontendRansac(mono_frame_lkf_->timestamp_,
+                                 tracker_status_summary_.lkf_T_k_mono_,
+                                 gtsam::Pose3());
+    }
+    //////////////////////////////////////////////////////////////////////////////
+
+    // Reset integration; the later the better.
+    VLOG(10) << "Reset IMU preintegration with latest IMU bias.";
+    imu_frontend_->resetIntegrationWithCachedBias();
+
+    // Return the output of the Frontend for the others.
+    // We have a keyframe, so We fill frame_lkf_ with the newest keyframe
+    VLOG(2) << "Frontend output is a keyframe: pushing to output callbacks.";
+    return std::make_unique<MonoFrontendOutput>(
+        frontend_state_ == FrontendState::Nominal,
+        status_mono_measurements,
+        mono_camera_->getBodyPoseCam(),
+        *mono_frame_lkf_,
+        pim,
+        input->getImuAccGyrs(),
+        feature_tracks,
+        getTrackerInfo(),
+        getExternalOdometryRelativeBodyPose(input.get()),
+        getExternalOdometryWorldVelocity(input.get()),
+        getRelativeDistance(input.get()));
+  } else {
+    // Record frame rate timing
+    timing_stats_frame_rate.AddSample(utils::Timer::toc(start_time).count());
+
+    // TODO(nathan) unify returning output packets
+    // We don't have a keyframe, so instead we forward the newest frame in this
+    // packet for use in the temporal calibration (if enabled)
+    VLOG(2) << "Frontend output is not a keyframe. Skipping output queue push.";
+    return std::make_unique<MonoFrontendOutput>(false,
+                                                status_mono_measurements,
+                                                mono_camera_->getBodyPoseCam(),
+                                                *mono_frame_km1_,
+                                                pim,
+                                                input->getImuAccGyrs(),
+                                                feature_tracks,
+                                                getTrackerInfo(),
+                                                std::nullopt,
+                                                std::nullopt,
+                                                getRelativeDistance(input.get()));
+  }
 }
 
 MonoFrontendOutput::UniquePtr MonoVisionImuFrontend::nominalSpinMono(
@@ -181,7 +260,8 @@ MonoFrontendOutput::UniquePtr MonoVisionImuFrontend::nominalSpinMono(
         feature_tracks,
         getTrackerInfo(),
         getExternalOdometryRelativeBodyPose(input.get()),
-        getExternalOdometryWorldVelocity(input.get()));
+        getExternalOdometryWorldVelocity(input.get()),
+        getRelativeDistance(input.get()));
   } else {
     // Record frame rate timing
     timing_stats_frame_rate.AddSample(utils::Timer::toc(start_time).count());
@@ -197,7 +277,10 @@ MonoFrontendOutput::UniquePtr MonoVisionImuFrontend::nominalSpinMono(
                                                 pim,
                                                 input->getImuAccGyrs(),
                                                 feature_tracks,
-                                                getTrackerInfo());
+                                                getTrackerInfo(),
+                                                std::nullopt,
+                                                std::nullopt,
+                                                getRelativeDistance(input.get()));
   }
 }
 
@@ -434,6 +517,44 @@ void MonoVisionImuFrontend::printStatusMonoMeasurements(
     LOG(INFO) << " " << meas.second << " ";
   }
   LOG(INFO) << std::endl;
+}
+
+void MonoVisionImuFrontend::processRelativeDistance(
+    const RelativeDistanceMeasurement& relative_distance) {
+  // Check data validity
+  if (relative_distance.timestamp_ <= 0) {
+    LOG(WARNING) << "Invalid relative distance timestamp: " << relative_distance.timestamp_;
+    return;
+  }
+
+  if (relative_distance.distance_ < 0.0) {
+    LOG(WARNING) << "Invalid negative relative distance from node " 
+                 << relative_distance.node_id_ << ": " << relative_distance.distance_;
+    return;
+  }
+
+  // Check timestamp order
+  if (last_relative_distance_timestamp_ > 0 && 
+      relative_distance.timestamp_ < last_relative_distance_timestamp_) {
+    LOG(WARNING) << "Out-of-order relative distance measurement. "
+                 << "Current: " << relative_distance.timestamp_
+                 << ", Last: " << last_relative_distance_timestamp_;
+    return;
+  }
+
+  // Calculate relative distance change
+  if (last_relative_distance_timestamp_ > 0) {
+    double delta_distance = relative_distance.distance_ - last_relative_distance_;
+    LOG(INFO) << "Relative distance change for node " << relative_distance.node_id_ 
+              << ": " << delta_distance << " meters";
+  }
+
+  // Update state
+  last_relative_distance_ = relative_distance.distance_;
+  last_relative_distance_timestamp_ = relative_distance.timestamp_;
+  
+  // Record node ID
+  last_relative_distance_node_id_ = relative_distance.node_id_;
 }
 
 }  // namespace VIO

@@ -103,16 +103,36 @@ MonoImuSyncPacket::UniquePtr MonoDataProviderModule::getMonoImuSyncPacket(
     }
   }
 
+  // Retrieve relative distance data
+  RelativeDistanceMeasurement relative_distance;
+  bool relative_distance_valid = getRelativeDistanceMeasurements(
+      &timestamp, &relative_distance);
+
   if (cache_timestamp) {
     timestamp_last_frame_ = timestamp;
   }
 
-  if (odometry_valid) {
-    // return synchronized left frame, IMU data and external odometry
+  if (odometry_valid && relative_distance_valid) {
+    // Return synced left frame, IMU data, external odometry and relative distance
+    return std::make_unique<MonoImuSyncPacket>(std::move(left_frame_payload),
+                                               imu_meas.timestamps_,
+                                               imu_meas.acc_gyr_,
+                                               external_odometry,
+                                               relative_distance);
+  } else if (odometry_valid) {
+    // Return synced left frame, IMU data and external odometry
     return std::make_unique<MonoImuSyncPacket>(std::move(left_frame_payload),
                                                imu_meas.timestamps_,
                                                imu_meas.acc_gyr_,
                                                external_odometry);
+  } else if (relative_distance_valid) {
+    // Return synced left frame, IMU data and relative distance
+    return std::make_unique<MonoImuSyncPacket>(
+        std::move(left_frame_payload), 
+        imu_meas.timestamps_, 
+        imu_meas.acc_gyr_,
+        std::nullopt,  // No external odometry
+        relative_distance);
   }
 
   //! Send synchronized left frame and IMU data.

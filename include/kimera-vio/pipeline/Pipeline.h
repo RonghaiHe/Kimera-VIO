@@ -90,6 +90,12 @@ class Pipeline {
     data_provider_module_->fillExternalOdometryQueue(odom_measurement);
   }
 
+  inline void fillRelativeDistanceQueue(
+      const RelativeDistanceMeasurement& distance_measurement) {
+    CHECK(data_provider_module_);
+    data_provider_module_->fillRelativeDistanceQueue(distance_measurement);
+  }
+
   inline LcdModule* getLcdModule() const { return lcd_module_.get(); }
 
  public:
